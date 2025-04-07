@@ -1,0 +1,4 @@
+zone "cyberstuff.local" {
+    type master;
+    file "/etc/bind/zones/db.cyberstuff.local";
+};
