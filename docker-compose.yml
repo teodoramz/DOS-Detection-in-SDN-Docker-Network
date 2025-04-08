@@ -10,8 +10,8 @@ services:
     hostname: ${KAFKA_HOSTNAME}
     container_name: ${KAFKA_CONTAINER_NAME}
     ports:
-      - ${KAFKA_WORKERS_PORT}:${KAFKA_WORKERS_PORT}
-      - ${KAFKA_INTERNAL_PORT}:${KAFKA_INTERNAL_PORT}
+      - 0.0.0.0:${KAFKA_WORKERS_PORT}:${KAFKA_WORKERS_PORT}
+      - 0.0.0.0:${KAFKA_INTERNAL_PORT}:${KAFKA_INTERNAL_PORT}
     environment:
       KAFKA_KRAFT_MODE: ${KAFKA_KRAFT_MODE}
       KAFKA_PROCESS_ROLES: ${KAFKA_PROCESS_ROLES}
@@ -42,7 +42,7 @@ services:
     hostname: ${KAFDROP_HOSTNAME}
     container_name: ${KAFDROP_CONTAINER_NAME}
     ports:
-      - ${KAFDROP_PORT}:${KAFDROP_PORT}
+      - 0.0.0.0:${KAFDROP_PORT}:${KAFDROP_PORT}
     environment:
       KAFKA_BROKERCONNECT: ${KAFKA_BROKERCONNECT}
     depends_on:
@@ -50,96 +50,92 @@ services:
 
   dns:
     build:
-      context: ./build/bind9
+      context: ./build/dns
       args:
         BIND9_IMAGE: ${BIND9_IMAGE}
         BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
     restart: ${BIND9_RESTART_POLICY}
     hostname: ${BIND9_HOSTNAME}
     container_name: ${BIND9_CONTAINER_NAME}
-    network_mode: none
-    volumes:
-      - ./named.conf:/etc/bind/named.conf
-      - ./db.cyberstuff.local:/etc/bind/db.cyberstuff.local
-    depends_on:
-      - kafka
-    command: [ "-g" ]
+    # network_mode: none
+    ports:
+      - "0.0.0.0:5454:53/udp"
+      - "0.0.0.0:5454:53/tcp"
+  # proxy:
+  #   image: nginx:alpine
+  #   container_name: proxy
+  #   network_mode: none
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf
+  #   depends_on:
+  #     - web
 
-  proxy:
-    image: nginx:alpine
-    container_name: proxy
-    network_mode: none
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-    depends_on:
-      - web
+  # web:
+  #   image: python:3.9-slim
+  #   container_name: web
+  #   network_mode: none
+  #   volumes:
+  #     - ./app.py:/app/app.py
+  #     - ./requirements.txt:/app/requirements.txt
+  #   working_dir: /app
+  #   command: sh -c "pip install -r requirements.txt && python app.py"
 
-  web:
-    image: python:3.9-slim
-    container_name: web
-    network_mode: none
-    volumes:
-      - ./app.py:/app/app.py
-      - ./requirements.txt:/app/requirements.txt
-    working_dir: /app
-    command: sh -c "pip install -r requirements.txt && python app.py"
+  # dns_collector:
+  #   image: python:3.9-slim
+  #   container_name: dns_collector
+  #   network_mode: none
+  #   cap_add:
+  #     - NET_RAW
+  #     - NET_ADMIN
+  #   volumes:
+  #     - ./dns_collector.py:/collector.py
+  #   depends_on:
+  #     - kafka
+  #   command: sh -c "pip install scapy kafka-python && python /collector.py"
 
-  dns_collector:
-    image: python:3.9-slim
-    container_name: dns_collector
-    network_mode: none
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-    volumes:
-      - ./dns_collector.py:/collector.py
-    depends_on:
-      - kafka
-    command: sh -c "pip install scapy kafka-python && python /collector.py"
+  # proxy_collector:
+  #   image: python:3.9-slim
+  #   container_name: proxy_collector
+  #   network_mode: none
+  #   cap_add:
+  #     - NET_RAW
+  #     - NET_ADMIN
+  #   volumes:
+  #     - ./proxy_collector.py:/collector.py
+  #   depends_on:
+  #     - kafka
+  #   command: sh -c "pip install scapy kafka-python && python /collector.py"
 
-  proxy_collector:
-    image: python:3.9-slim
-    container_name: proxy_collector
-    network_mode: none
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-    volumes:
-      - ./proxy_collector.py:/collector.py
-    depends_on:
-      - kafka
-    command: sh -c "pip install scapy kafka-python && python /collector.py"
+  # web_collector:
+  #   image: python:3.9-slim
+  #   container_name: web_collector
+  #   network_mode: none
+  #   cap_add:
+  #     - NET_RAW
+  #     - NET_ADMIN
+  #   volumes:
+  #     - ./web_collector.py:/collector.py
+  #   depends_on:
+  #     - kafka
+  #   command: sh -c "pip install scapy kafka-python && python /collector.py"
 
-  web_collector:
-    image: python:3.9-slim
-    container_name: web_collector
-    network_mode: none
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-    volumes:
-      - ./web_collector.py:/collector.py
-    depends_on:
-      - kafka
-    command: sh -c "pip install scapy kafka-python && python /collector.py"
+  # ml_worker:
+  #   image: python:3.9-slim
+  #   container_name: ml_worker
+  #   network_mode: none
+  #   volumes:
+  #     - ./ml_worker.py:/ml_worker.py
+  #   depends_on:
+  #     - kafka
+  #     - ryu
+  #   command: sh -c "pip install scapy kafka-python requests && python /ml_worker.py"
 
-  ml_worker:
-    image: python:3.9-slim
-    container_name: ml_worker
-    network_mode: none
-    volumes:
-      - ./ml_worker.py:/ml_worker.py
-    depends_on:
-      - kafka
-      - ryu
-    command: sh -c "pip install scapy kafka-python requests && python /ml_worker.py"
-
-  ryu:
-    image: python:3.9-slim
-    container_name: ryu
-    network_mode: none
-    volumes:
-      - ./ddos_blocker.py:/ddos_blocker.py
-    depends_on:
-      - kafka
-    command: sh -c "pip install ryu && ryu-manager --ofp-tcp-listen-port 6633 /ddos_blocker.py ryu.app.ofctl_rest"
+  # ryu:
+  #   image: python:3.9-slim
+  #   container_name: ryu
+  #   network_mode: none
+  #   volumes:
+  #     - ./ddos_blocker.py:/ddos_blocker.py
+  #   depends_on:
+  #     - kafka
+  #   command: sh -c "pip install ryu && ryu-manager --ofp-tcp-listen-port 6633 /ddos_blocker.py ryu.app.ofctl_rest"
