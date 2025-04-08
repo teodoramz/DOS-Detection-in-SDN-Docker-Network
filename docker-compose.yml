@@ -61,14 +61,12 @@ services:
     ports:
       - "0.0.0.0:5454:53/udp"
       - "0.0.0.0:5454:53/tcp"
-  # proxy:
-  #   image: nginx:alpine
-  #   container_name: proxy
-  #   network_mode: none
-  #   volumes:
-  #     - ./nginx.conf:/etc/nginx/nginx.conf
-  #   depends_on:
-  #     - web
+  proxy:
+    image: nginx:alpine
+    container_name: proxy
+    network_mode: none
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
 
   # web:
   #   image: python:3.9-slim
