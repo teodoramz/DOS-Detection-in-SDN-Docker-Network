@@ -1,10 +1,15 @@
 $TTL 1h
-@   IN SOA   ns1.cyberstuff.local. admin.cyberstuff.local. (
-            2025040701  ; serial (YYYYMMDDXX)
-            1h          ; refresh
-            15m         ; retry
-            1w          ; expire
-            1h )        ; minimum
-@   IN NS    ns1.cyberstuff.local.
-ns1 IN A     172.16.100.10        ; DNS server IP
-www IN A     172.16.100.30        ; web server IP
+@       IN SOA    ns1.cyberstuff.local. admin.cyberstuff.local. (
+            2025040701 ; serial (YYYYMMDDXX)
+            1h         ; refresh
+            15m        ; retry
+            1w         ; expire
+            1h )      ; minimum
+
+@       IN NS     ns1.cyberstuff.local.
+ns1     IN A      172.16.100.10        ; DNS server IP
+@       IN A      172.16.100.30        ; adresa IP principală pentru domeniu
+www     IN A      172.16.100.30        ; înregistrare pentru www
+
+; Inregistrare PTR pentru www (opțional, dacă dorești să rezolvi și invers)
+172.16.100.30   IN PTR   www.cyberstuff.local.
