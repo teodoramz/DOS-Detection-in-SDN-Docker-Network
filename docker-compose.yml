@@ -1,74 +1,83 @@
 version: '3.8'
 services:
-  kafka:
-    build:
-      context: ./build/kafka-kraft
-      args:
-        KAFKA_IMAGE: ${KAFKA_IMAGE}
-        KAFKA_IMAGE_TAG: ${KAFKA_IMAGE_TAG}
-    restart: ${KAFKA_RESTART_POLICY}
-    hostname: ${KAFKA_HOSTNAME}
-    container_name: ${KAFKA_CONTAINER_NAME}
-    ports:
-      - 0.0.0.0:${KAFKA_WORKERS_PORT}:${KAFKA_WORKERS_PORT}
-      - 0.0.0.0:${KAFKA_INTERNAL_PORT}:${KAFKA_INTERNAL_PORT}
-    environment:
-      KAFKA_KRAFT_MODE: ${KAFKA_KRAFT_MODE}
-      KAFKA_PROCESS_ROLES: ${KAFKA_PROCESS_ROLES}
-      KAFKA_NODE_ID: ${KAFKA_NODE_ID}
-      KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CONTROLLER_QUORUM_VOTERS}
-      KAFKA_LISTENERS: ${KAFKA_LISTENERS}
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP}
-      KAFKA_INTER_BROKER_LISTENER_NAME: ${KAFKA_INTER_BROKER_LISTENER_NAME}
-      KAFKA_CONTROLLER_LISTENER_NAMES: ${KAFKA_CONTROLLER_LISTENER_NAMES}
-      KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS} # Corectat pentru acces intern
-      KAFKA_LOG_DIRS: ${KAFKA_LOG_DIRS}
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS_ENABLE}
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
-      KAFKA_LOG_RETENTION_HOURS: ${KAFKA_LOG_RETENTION_HOURS}
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: ${KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS}
-      CLUSTER_ID: ${CLUSTER_ID}
-    volumes:
-      - ./volumes/kafka-kraft/data:${KAFKA_VOLUME}
+  # kafka:
+  #   build:
+  #     context: ./build/kafka-kraft
+  #     args:
+  #       KAFKA_IMAGE: ${KAFKA_IMAGE}
+  #       KAFKA_IMAGE_TAG: ${KAFKA_IMAGE_TAG}
+  #   restart: ${KAFKA_RESTART_POLICY}
+  #   hostname: ${KAFKA_HOSTNAME}
+  #   container_name: ${KAFKA_CONTAINER_NAME}
+  #   ports:
+  #     - 0.0.0.0:${KAFKA_WORKERS_PORT}:${KAFKA_WORKERS_PORT}
+  #     - 0.0.0.0:${KAFKA_INTERNAL_PORT}:${KAFKA_INTERNAL_PORT}
+  #   environment:
+  #     KAFKA_KRAFT_MODE: ${KAFKA_KRAFT_MODE}
+  #     KAFKA_PROCESS_ROLES: ${KAFKA_PROCESS_ROLES}
+  #     KAFKA_NODE_ID: ${KAFKA_NODE_ID}
+  #     KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CONTROLLER_QUORUM_VOTERS}
+  #     KAFKA_LISTENERS: ${KAFKA_LISTENERS}
+  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP}
+  #     KAFKA_INTER_BROKER_LISTENER_NAME: ${KAFKA_INTER_BROKER_LISTENER_NAME}
+  #     KAFKA_CONTROLLER_LISTENER_NAMES: ${KAFKA_CONTROLLER_LISTENER_NAMES}
+  #     KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS} # Corectat pentru acces intern
+  #     KAFKA_LOG_DIRS: ${KAFKA_LOG_DIRS}
+  #     KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS_ENABLE}
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
+  #     KAFKA_LOG_RETENTION_HOURS: ${KAFKA_LOG_RETENTION_HOURS}
+  #     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: ${KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS}
+  #     CLUSTER_ID: ${CLUSTER_ID}
+  #   volumes:
+  #     - ./volumes/kafka-kraft/data:${KAFKA_VOLUME}
 
-  kafdrop:
-    build:
-      context: ./build/kafka-kraft
-      args:
-        KAFKA_IMAGE: ${KAFDROP_IMAGE}
-        KAFKA_IMAGE_TAG: ${KAFDROP_IMAGE_TAG}
+  # kafdrop:
+  #   build:
+  #     context: ./build/kafka-kraft
+  #     args:
+  #       KAFKA_IMAGE: ${KAFDROP_IMAGE}
+  #       KAFKA_IMAGE_TAG: ${KAFDROP_IMAGE_TAG}
 
-    restart: ${KAFDROP_RESTART_POLICY}
-    hostname: ${KAFDROP_HOSTNAME}
-    container_name: ${KAFDROP_CONTAINER_NAME}
-    ports:
-      - 0.0.0.0:${KAFDROP_PORT}:${KAFDROP_PORT}
-    environment:
-      KAFKA_BROKERCONNECT: ${KAFKA_BROKERCONNECT}
-    depends_on:
-      - "kafka"
+  #   restart: ${KAFDROP_RESTART_POLICY}
+  #   hostname: ${KAFDROP_HOSTNAME}
+  #   container_name: ${KAFDROP_CONTAINER_NAME}
+  #   ports:
+  #     - 0.0.0.0:${KAFDROP_PORT}:${KAFDROP_PORT}
+  #   environment:
+  #     KAFKA_BROKERCONNECT: ${KAFKA_BROKERCONNECT}
+  #   depends_on:
+  #     - "kafka"
 
-  dns:
-    build:
-      context: ./build/dns
-      args:
-        BIND9_IMAGE: ${BIND9_IMAGE}
-        BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-    restart: ${BIND9_RESTART_POLICY}
-    hostname: ${BIND9_HOSTNAME}
-    container_name: ${BIND9_CONTAINER_NAME}
-    # network_mode: none
-    ports:
-      - "0.0.0.0:5454:53/udp"
-      - "0.0.0.0:5454:53/tcp"
+  # dns:
+  #   build:
+  #     context: ./build/dns
+  #     args:
+  #       BIND9_IMAGE: ${BIND9_IMAGE}
+  #       BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+  #   restart: ${BIND9_RESTART_POLICY}
+  #   hostname: ${BIND9_HOSTNAME}
+  #   container_name: ${BIND9_CONTAINER_NAME}
+  #   # network_mode: none
+  #   ports:
+  #     - "0.0.0.0:5454:53/udp"
+  #     - "0.0.0.0:5454:53/tcp"
   proxy:
-    image: nginx:alpine
-    container_name: proxy
-    network_mode: none
+    build:
+      context: ./build/proxy
+      args:
+        NGINX_IMAGE: ${NGINX_IMAGE}
+        NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
+    restart: ${NGINX_RESTART_POLICY}
+    hostname: ${NGINX_HOSTNAME}
+    container_name: ${NGINX_CONTAINER_NAME}
+    ports:
+      - "0.0.0.0:80:80"
+      - "0.0.0.0:443:443"
+    # network_mode: none
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf
-
-  # web:
+      - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
+      - ./build/certs/ssl:/etc/nginx/ssl
+  # webserver:
   #   image: python:3.9-slim
   #   container_name: web
   #   network_mode: none
