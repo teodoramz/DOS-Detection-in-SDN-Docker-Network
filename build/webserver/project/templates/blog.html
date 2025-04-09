@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Blog{% endblock %}
+{% block content %}
+<h1>Blog</h1>
+<div class="list-group">
+  {% for post in posts %}
+    <a href="/post/{{ post.id }}" class="list-group-item list-group-item-action">
+      <h5 class="mb-1">{{ post.title }}</h5>
+      <small>by {{ post.author }} on {{ post.date }}</small>
+      <p class="mb-1">{{ post.content[:100] }}...</p>
+    </a>
+  {% endfor %}
+</div>
+{% endblock %}

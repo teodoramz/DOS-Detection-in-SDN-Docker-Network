@@ -59,33 +59,42 @@ services:
   #   container_name: ${BIND9_CONTAINER_NAME}
   #   # network_mode: none
   #   ports:
-  #     - "0.0.0.0:5454:53/udp"
-  #     - "0.0.0.0:5454:53/tcp"
-  proxy:
-    build:
-      context: ./build/proxy
-      args:
-        NGINX_IMAGE: ${NGINX_IMAGE}
-        NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
-    restart: ${NGINX_RESTART_POLICY}
-    hostname: ${NGINX_HOSTNAME}
-    container_name: ${NGINX_CONTAINER_NAME}
-    ports:
-      - "0.0.0.0:80:80"
-      - "0.0.0.0:443:443"
-    # network_mode: none
-    volumes:
-      - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
-      - ./build/certs/ssl:/etc/nginx/ssl
-  # webserver:
-  #   image: python:3.9-slim
-  #   container_name: web
-  #   network_mode: none
+  #     - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_UDP}/udp"
+  #     - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_TCP}/tcp"
+  # proxy:
+  #   build:
+  #     context: ./build/proxy
+  #     args:
+  #       NGINX_IMAGE: ${NGINX_IMAGE}
+  #       NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
+  #   restart: ${NGINX_RESTART_POLICY}
+  #   hostname: ${NGINX_HOSTNAME}
+  #   container_name: ${NGINX_CONTAINER_NAME}
+  #   ports:
+  #     - "0.0.0.0:${NGINX_PORT}:${NGINX_PORT}"
+  #     - "0.0.0.0:${NGINX_PORT_SSL}:${NGINX_PORT_SSL}"
+  #   # network_mode: none
   #   volumes:
-  #     - ./app.py:/app/app.py
-  #     - ./requirements.txt:/app/requirements.txt
-  #   working_dir: /app
-  #   command: sh -c "pip install -r requirements.txt && python app.py"
+  #     - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
+  #     - ./build/certs/ssl:/etc/nginx/ssl
+
+  # webserver:
+  #   build:
+  #     context: ./build/webserver
+  #     args:
+  #       WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+  #       WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
+  #       WEBSERVER_PORT: ${WEBSERVER_PORT}
+  #   restart: ${WEBSERVER_RESTART_POLICY}
+  #   container_name: ${WEBSERVER_CONTAINER_NAME}
+  #   hostname: ${WEBSERVER_HOSTNAME}
+  #   # network_mode: none
+  #   environment:
+  #     WEBSERVER_PORT: ${WEBSERVER_PORT}
+  #     WEBSERVER_HOST: ${WEBSERVER_HOST}
+  #     WEBSERVER_DEBUG: ${WEBSERVER_DEBUG}
+  #   ports:
+  #     - "0.0.0.0:${WEBSERVER_PORT}:${WEBSERVER_PORT}"
 
   # dns_collector:
   #   image: python:3.9-slim
@@ -137,12 +146,19 @@ services:
   #     - ryu
   #   command: sh -c "pip install scapy kafka-python requests && python /ml_worker.py"
 
-  # ryu:
-  #   image: python:3.9-slim
-  #   container_name: ryu
-  #   network_mode: none
-  #   volumes:
-  #     - ./ddos_blocker.py:/ddos_blocker.py
-  #   depends_on:
-  #     - kafka
-  #   command: sh -c "pip install ryu && ryu-manager --ofp-tcp-listen-port 6633 /ddos_blocker.py ryu.app.ofctl_rest"
+  ryu:
+    build:
+      context: ./build/ryu
+      args:
+        RYU_IMAGE: ${RYU_IMAGE}
+        RYU_IMAGE_TAG: ${RYU_IMAGE_TAG}
+    restart: ${RYU_RESTART_POLICY}
+    container_name: ${RYU_CONTAINER_NAME}
+    hostname: ${RYU_HOSTNAME}
+    ports:
+      - "0.0.0.0:${RYU_PORT}:${RYU_PORT}"
+    # network_mode: none
+    volumes:
+      - ./ddos_blocker.py:/ddos_blocker.py
+    command: sh -c "pip install ryu && ryu-manager --ofp-tcp-listen-port 6633 /ddos_blocker.py ryu.app.ofctl_rest"
+

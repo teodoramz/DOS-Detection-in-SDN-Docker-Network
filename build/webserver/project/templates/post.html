@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+{% block title %}{{ post.title }}{% endblock %}
+{% block content %}
+<h1>{{ post.title }}</h1>
+<p class="text-muted">by {{ post.author }} on {{ post.date }}</p>
+<hr>
+<p>{{ post.content }}</p>
+<a href="/blog" class="btn btn-secondary mt-3">Back to Blog</a>
+{% endblock %}
