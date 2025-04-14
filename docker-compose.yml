@@ -58,6 +58,7 @@ services:
     hostname: ${BIND9_HOSTNAME}
     container_name: ${BIND9_CONTAINER_NAME}
     network_mode: none
+    privileged: true
     ports:
       - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_UDP}/udp"
       - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_TCP}/tcp"
@@ -74,10 +75,36 @@ services:
       - "0.0.0.0:${NGINX_PORT}:${NGINX_PORT}"
       - "0.0.0.0:${NGINX_PORT_SSL}:${NGINX_PORT_SSL}"
     network_mode: none
+    privileged: true
     volumes:
       - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
       - ./build/certs/ssl:/etc/nginx/ssl
 
+  ryu:
+    build:
+      context: ./build/ryu-controller
+      # args:
+      #   BIND9_IMAGE: ${BIND9_IMAGE}
+      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+      # restart: ${BIND9_RESTART_POLICY}
+    privileged: true
+    hostname: "ryu"
+    container_name: "ryu"
+    network_mode: none
+    ports:
+      - "0.0.0.0:6633:6633"
+
+  openvswitch:
+    build:
+      context: ./build/openvswitch
+      # args:
+      #   BIND9_IMAGE: ${BIND9_IMAGE}
+      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+      # restart: ${BIND9_RESTART_POLICY}
+    privileged: true
+    hostname: "openvswitch"
+    container_name: "openvswitch"
+    network_mode: none
   # webserver:
   #   build:
   #     context: ./build/webserver
