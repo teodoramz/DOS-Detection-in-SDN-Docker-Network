@@ -48,53 +48,83 @@ services:
   #   depends_on:
   #     - "kafka"
 
-  dns:
-    build:
-      context: ./build/dns
-      args:
-        BIND9_IMAGE: ${BIND9_IMAGE}
-        BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-    restart: ${BIND9_RESTART_POLICY}
-    hostname: ${BIND9_HOSTNAME}
-    container_name: ${BIND9_CONTAINER_NAME}
+  # dns:
+  #   build:
+  #     context: ./build/dns
+  #     args:
+  #       BIND9_IMAGE: ${BIND9_IMAGE}
+  #       BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+  #   restart: ${BIND9_RESTART_POLICY}
+  #   hostname: ${BIND9_HOSTNAME}
+  #   container_name: ${BIND9_CONTAINER_NAME}
+  #   network_mode: none
+  #   privileged: true
+  #   ports:
+  #     - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_UDP}/udp"
+  #     - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_TCP}/tcp"
+  # proxy:
+  #   build:
+  #     context: ./build/proxy
+  #     args:
+  #       NGINX_IMAGE: ${NGINX_IMAGE}
+  #       NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
+  #   restart: ${NGINX_RESTART_POLICY}
+  #   hostname: ${NGINX_HOSTNAME}
+  #   container_name: ${NGINX_CONTAINER_NAME}
+  #   ports:
+  #     - "0.0.0.0:${NGINX_PORT}:${NGINX_PORT}"
+  #     - "0.0.0.0:${NGINX_PORT_SSL}:${NGINX_PORT_SSL}"
+  #   network_mode: none
+  #   privileged: true
+  #   volumes:
+  #     - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
+  #     - ./build/certs/ssl:/etc/nginx/ssl
+
+  container-test1:
+    image: ubuntu:20.04
+    container_name: container-test1
     network_mode: none
     privileged: true
-    ports:
-      - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_UDP}/udp"
-      - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_TCP}/tcp"
-  proxy:
-    build:
-      context: ./build/proxy
-      args:
-        NGINX_IMAGE: ${NGINX_IMAGE}
-        NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
-    restart: ${NGINX_RESTART_POLICY}
-    hostname: ${NGINX_HOSTNAME}
-    container_name: ${NGINX_CONTAINER_NAME}
-    ports:
-      - "0.0.0.0:${NGINX_PORT}:${NGINX_PORT}"
-      - "0.0.0.0:${NGINX_PORT_SSL}:${NGINX_PORT_SSL}"
+    command: sleep infinity
+
+  container-test2:
+    image: ubuntu:20.04
+    container_name: container-test2
     network_mode: none
     privileged: true
-    volumes:
-      - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
-      - ./build/certs/ssl:/etc/nginx/ssl
+    command: sleep infinity
+
+  container-test3:
+    image: ubuntu:20.04
+    container_name: container-test3
+    network_mode: none
+    privileged: true
+    command: sleep infinity
+
+  container-test4:
+    image: ubuntu:20.04
+    container_name: container-test4
+    network_mode: none
+    privileged: true
+    command: sleep infinity
 
   ryu:
     build:
       context: ./build/ryu-controller
-      # args:
+      args:
+        SDN_IMAGE_TAG: ${SDN_IMAGE_TAG}
+        SDN_IMAGE: ${SDN_IMAGE}
       #   BIND9_IMAGE: ${BIND9_IMAGE}
       #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-      # restart: ${BIND9_RESTART_POLICY}
+    restart: ${SDN_RESTART_POLICY}
     privileged: true
     hostname: "ryu"
     container_name: "ryu"
-    network_mode: none
+    network_mode: host
     ports:
       - "0.0.0.0:6633:6633"
 
-  openvswitch:
+  sw1:
     build:
       context: ./build/openvswitch
       # args:
@@ -102,8 +132,44 @@ services:
       #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
       # restart: ${BIND9_RESTART_POLICY}
     privileged: true
-    hostname: "openvswitch"
-    container_name: "openvswitch"
+    hostname: "sw1"
+    container_name: "sw1"
+    network_mode: none
+
+  sw2:
+    build:
+      context: ./build/openvswitch
+      # args:
+      #   BIND9_IMAGE: ${BIND9_IMAGE}
+      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+      # restart: ${BIND9_RESTART_POLICY}
+    privileged: true
+    hostname: "sw2"
+    container_name: "sw2"
+    network_mode: none
+
+  sw3:
+    build:
+      context: ./build/openvswitch
+      # args:
+      #   BIND9_IMAGE: ${BIND9_IMAGE}
+      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+      # restart: ${BIND9_RESTART_POLICY}
+    privileged: true
+    hostname: "sw3"
+    container_name: "sw3"
+    network_mode: none
+
+  sw4:
+    build:
+      context: ./build/openvswitch
+      # args:
+      #   BIND9_IMAGE: ${BIND9_IMAGE}
+      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+      # restart: ${BIND9_RESTART_POLICY}
+    privileged: true
+    hostname: "sw4"
+    container_name: "sw4"
     network_mode: none
   # webserver:
   #   build:
