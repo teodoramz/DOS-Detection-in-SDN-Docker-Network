@@ -81,28 +81,32 @@ services:
   #     - ./build/certs/ssl:/etc/nginx/ssl
 
   container-test1:
-    image: ubuntu:20.04
+    build:
+      context: ./build/ubuntu-net
     container_name: container-test1
     network_mode: none
     privileged: true
     command: sleep infinity
 
   container-test2:
-    image: ubuntu:20.04
+    build:
+      context: ./build/ubuntu-net
     container_name: container-test2
     network_mode: none
     privileged: true
     command: sleep infinity
 
   container-test3:
-    image: ubuntu:20.04
+    build:
+      context: ./build/ubuntu-net
     container_name: container-test3
     network_mode: none
     privileged: true
     command: sleep infinity
 
   container-test4:
-    image: ubuntu:20.04
+    build:
+      context: ./build/ubuntu-net
     container_name: container-test4
     network_mode: none
     privileged: true
