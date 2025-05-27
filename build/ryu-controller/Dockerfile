@@ -1,6 +1,9 @@
 FROM ubuntu:20.04
 
-RUN apt-get update && apt-get install -y python3-pip iproute2 iputils-ping dnsutils
+ENV DEBIAN_FRONTEND=noninteractive
+ARG TZ=Etc/UTC
+
+RUN apt-get update && apt-get install -y python3-pip iproute2 iputils-ping dnsutils iptables
 
 RUN pip3 install ryu eventlet==0.25.2 dnspython==1.16.0
 
