@@ -10,9 +10,10 @@ docker exec sw1 ip link set eth_br0 up
 
 docker exec sw1 ovs-vsctl add-br br-sw1
 docker exec sw1 ovs-vsctl add-port br-sw1 eth_br0
-docker exec sw1 ip addr add 10.255.255.1/24 dev eth_br0 #mgmt
-docker exec sw1 sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
-docker exec sw1 iptables -I FORWARD -j ACCEPT
+docker exec sw1 ip addr add 10.255.255.1/24 dev br-sw1 #mgmt
+docker exec sw1 ip link set br-sw1 up
+#docker exec sw1 sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+#docker exec sw1 iptables -I FORWARD -j ACCEPT
 # docker exec sw1 sed -i '/^#*net.ipv4.ip_forward=/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
 
 
@@ -28,7 +29,8 @@ docker exec sw4 ip link set eth_br0 up
 
 docker exec sw4 ovs-vsctl add-br br-sw4
 docker exec sw4 ovs-vsctl add-port br-sw4 eth_br0
-docker exec sw4 ip addr add 10.255.255.4/24 dev eth_br0 #mgmt
-docker exec sw4 sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
-docker exec sw4 iptables -I FORWARD -j ACCEPT
+docker exec sw4 ip addr add 10.255.255.4/24 dev br-sw4 #mgmt
+docker exec sw4 ip link set br-sw4  up
+#docker exec sw4 sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
+#docker exec sw4 iptables -I FORWARD -j ACCEPT
 # docker exec sw4 sed -i '/^#*net.ipv4.ip_forward=/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
