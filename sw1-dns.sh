@@ -10,10 +10,9 @@ docker exec container-test1 ip link set eth0 up
 docker exec container-test1 ip route add default via 10.0.1.1
 
 docker exec sw1 ip link set veth-sw1-dns name eth_dns
-docker exec sw1 ip link set eth_dns up
 docker exec sw1 ovs-vsctl add-port br-sw1 eth_dns
 docker exec sw1 ip addr add 10.0.1.1/30 dev eth_dns
-
+docker exec sw1 ip link set eth_dns up
 
 # DNS-COL (container-test2)
 ip link add veth-dns-col type veth peer name veth-sw1-dcol
@@ -27,6 +26,6 @@ docker exec container-test2 ip link set eth0 up
 docker exec container-test2 ip route add default via 10.0.1.5
 
 docker exec sw1 ip link set veth-sw1-dcol name eth_dcol
-docker exec sw1 ip link set eth_dcol up
 docker exec sw1 ovs-vsctl add-port br-sw1 eth_dcol
 docker exec sw1 ip addr add 10.0.1.5/30 dev eth_dcol
+docker exec sw1 ip link set eth_dcol up

@@ -10,10 +10,9 @@ docker exec container-test3 ip link set eth0 up
 docker exec container-test3 ip route add default via 10.0.2.1
 
 docker exec sw2 ip link set veth-sw2-psrv name eth_proxy
-docker exec sw2 ip link set eth_proxy up
 docker exec sw2 ovs-vsctl add-port br-sw2 eth_proxy
 docker exec sw2 ip addr add 10.0.2.1/30 dev eth_proxy
-
+docker exec sw2 ip link set eth_proxy up
 
 # PROXY-COL (container-test4)
 ip link add veth-proxy-col type veth peer name veth-sw2-pcol
@@ -27,6 +26,6 @@ docker exec container-test4 ip link set eth0 up
 docker exec container-test4 ip route add default via 10.0.2.5
 
 docker exec sw2 ip link set veth-sw2-pcol name eth_pcol
-docker exec sw2 ip link set eth_pcol up
 docker exec sw2 ovs-vsctl add-port br-sw2 eth_pcol
 docker exec sw2 ip addr add 10.0.2.5/30 dev eth_pcol
+docker exec sw2 ip link set eth_pcol up
