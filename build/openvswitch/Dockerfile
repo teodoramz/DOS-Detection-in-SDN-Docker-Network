@@ -6,12 +6,11 @@ RUN apt-get update && apt-get install -y \
     openvswitch-switch \
     openvswitch-common \
     iproute2 \
-    traceroute \
     iptables \
     iputils-ping dnsutils \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get update && apt-get install -y traceroute
 
-COPY startup.sh /startup.sh
+COPY ./startup.sh /startup.sh
 RUN chmod +x /startup.sh
 
 CMD ["/startup.sh"]
