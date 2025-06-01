@@ -4,7 +4,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends  \
-    iproute2 traceroute iputils-ping dnsutils  iptables netbase ca-certificates && \
-    rm -rf /var/lib/apt/lists/*
+    iproute2 iputils-ping dnsutils  iptables netbase ca-certificates \
+    && apt-get update && apt-get install -y traceroute
 
 CMD ["sleep", "infinity"]

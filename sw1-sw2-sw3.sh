@@ -36,7 +36,7 @@ docker exec sw3 ovs-vsctl add-br br-sw3
 docker exec sw3 ovs-vsctl add-port br-sw3 eth_sw2
 docker exec sw3 ip addr add 10.0.0.14/30 dev eth_sw2
 docker exec sw3 ip addr add 10.255.255.3/24 dev br-sw3  # mgmt
-docker exec sw2 ip link set br-sw3 up
+docker exec sw3 ip link set br-sw3 up
 #docker exec sw3 sh -c "echo 1 > /proc/sys/net/ipv4/ip_forward"
 #docker exec sw3 iptables -I FORWARD -j ACCEPT
 # docker exec sw3 sed -i '/^#*net.ipv4.ip_forward=/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
