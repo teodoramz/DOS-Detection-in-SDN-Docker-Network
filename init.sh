@@ -1,18 +1,13 @@
-#sudo apt update
-#sudo apt install -y openvswitch-switch iproute2 docker.io
-#sudo modprobe openvswitch
-sudo ovs-vsctl add-br br0
+#!/bin/bash
 
-# tunel GRE spre host-ul 2
-#sudo ovs-vsctl add-port br0 gre-to-h2 \
-#      -- set interface gre-to-h2 type=gre \
-#      options:remote_ip=192.168.35.36 options:local_ip=192.168.35.35
+./config_br0_up.sh
+./sw1-sw4.sh
+./sw1-sw2-sw3.sh
 
-# adresă „management /24” pe br0
-#sudo ip addr add 10.255.255.254/24 dev br0
-#sudo ip link set br0 up
+./sw1-dns.sh
+./sw2-proxy.sh
 
-# permit forward-ul L2/L3 prin br0
-#sudo sysctl -w net.ipv4.ip_forward=1
-#sudo iptables -I FORWARD -i br0 -j ACCEPT
-#sudo iptables -I FORWARD -o br0 -j ACCEPT
+./routing.sh
+
+
+./ryu-sw.sh

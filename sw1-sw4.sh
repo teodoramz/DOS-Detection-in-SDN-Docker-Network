@@ -1,4 +1,4 @@
-### ---------- sw1 ----------
+# sw1
 ip link add veth-sw1-br type veth peer name veth-br-sw1
 sudo ovs-vsctl add-port br0 veth-br-sw1
 ip link set veth-br-sw1 up
@@ -17,7 +17,7 @@ docker exec sw1 ip link set br-sw1 up
 # docker exec sw1 sed -i '/^#*net.ipv4.ip_forward=/c\net.ipv4.ip_forward=1' /etc/sysctl.conf
 
 
-### ---------- sw4 ----------
+# sw4
 ip link add veth-sw4-br type veth peer name veth-br-sw4
 sudo ovs-vsctl add-port br0 veth-br-sw4
 ip link set veth-br-sw4 up
