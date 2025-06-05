@@ -22,16 +22,34 @@ docker exec sw3 ip addr add 10.0.3.1/24 dev gw3
 docker exec sw3 ip link set gw3 up
 docker exec sw3 sysctl -w net.ipv4.ip_forward=1
 
-
+# sw4 gateway
+docker exec sw4 ovs-vsctl \
+  --may-exist add-port br-sw4 gw4 \
+  -- set interface gw4 type=internal
+docker exec sw4 ip addr add 10.0.4.1/24 dev gw4
+docker exec sw4 ip link set gw4 up
+docker exec sw4 sysctl -w net.ipv4.ip_forward=1
 
 # sw1 - sw2/sw3 static link via mgmt
 docker exec sw1 ip route add 10.0.2.0/24 via 10.255.255.2
 docker exec sw1 ip route add 10.0.3.0/24 via 10.255.255.3
+docker exec sw1 ip route add 10.0.4.0/24 via 10.255.255.4 #temp
+docker exec sw1 ip route add 10.0.5.0/24 via 10.255.255.5
 
 # sw2 - sw1/sw3 static link via mgmt
 docker exec sw2 ip route add 10.0.1.0/24 via 10.255.255.1
 docker exec sw2 ip route add 10.0.3.0/24 via 10.255.255.3
+docker exec sw2 ip route add 10.0.4.0/24 via 10.255.255.4 #temp
+docker exec sw2 ip route add 10.0.5.0/24 via 10.255.255.5
 
 # sw3 - sw1/sw2 static link via mgmt
 docker exec sw3 ip route add 10.0.1.0/24 via 10.255.255.1
 docker exec sw3 ip route add 10.0.2.0/24 via 10.255.255.2
+docker exec sw3 ip route add 10.0.4.0/24 via 10.255.255.4 #temp
+docker exec sw3 ip route add 10.0.5.0/24 via 10.255.255.5
+
+# sw4 - sw1/sw2 static link via mgmt
+docker exec sw4 ip route add 10.0.1.0/24 via 10.255.255.1
+docker exec sw4 ip route add 10.0.2.0/24 via 10.255.255.2
+docker exec sw4 ip route add 10.0.3.0/24 via 10.255.255.3
+docker exec sw4 ip route add 10.0.5.0/24 via 10.255.255.5
