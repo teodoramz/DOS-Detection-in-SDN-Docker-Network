@@ -7,9 +7,9 @@ $TTL 1h
             1h )      ; minimum
 
 @       IN NS     ns1.cyberstuff.local.
-ns1     IN A      172.16.100.10        ; DNS server IP
-@       IN A      172.16.100.30        ; adresa IP principală pentru domeniu
-www     IN A      172.16.100.30        ; înregistrare pentru www
+ns1     IN A      10.0.1.2        ; DNS server IP
+@       IN A      10.0.2.2        ; adresa IP principală pentru domeniu
+www     IN A      10.0.2.2        ; înregistrare pentru www
 
 ; Inregistrare PTR pentru www (opțional, dacă dorești să rezolvi și invers)
-172.16.100.30   IN PTR   www.cyberstuff.local.
+10.0.2.2   IN PTR   www.cyberstuff.local.

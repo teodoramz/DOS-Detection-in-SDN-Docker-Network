@@ -20,7 +20,7 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP}
       KAFKA_INTER_BROKER_LISTENER_NAME: ${KAFKA_INTER_BROKER_LISTENER_NAME}
       KAFKA_CONTROLLER_LISTENER_NAMES: ${KAFKA_CONTROLLER_LISTENER_NAMES}
-      KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS} # Corectat pentru acces intern
+      KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS}
       KAFKA_LOG_DIRS: ${KAFKA_LOG_DIRS}
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS_ENABLE}
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
@@ -45,16 +45,7 @@ services:
       KAFKA_BROKERCONNECT: ${KAFKA_BROKERCONNECT}
       SERVER_PORT: ${KAFDROP_PORT}
 
-
-  # kafka:
-  #   build:
-  #     context: ./build/ubuntu-net
-  #   container_name: kafka
-  #   network_mode: none
-  #   privileged: true
-  #   command: sleep infinity
-
-  # kafdrop:
+  # example:
   #   build:
   #     context: ./build/ubuntu-net
   #   container_name: kafdrop
@@ -89,10 +80,6 @@ services:
   sw5:
     build:
       context: ./build/openvswitch
-      # args:
-      #   BIND9_IMAGE: ${BIND9_IMAGE}
-      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-      # restart: ${BIND9_RESTART_POLICY}
     privileged: true
     hostname: "sw5"
     container_name: "sw5"
