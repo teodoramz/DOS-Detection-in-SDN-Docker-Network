@@ -11,28 +11,8 @@ services:
     container_name: ${BIND9_CONTAINER_NAME}
     network_mode: none
     privileged: true
-    # ports:
-    #   - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_UDP}/udp"
-    #   - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_TCP}/tcp"
-  # proxy:
-  #   build:
-  #     context: ./build/proxy
-  #     args:
-  #       NGINX_IMAGE: ${NGINX_IMAGE}
-  #       NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
-  #   restart: ${NGINX_RESTART_POLICY}
-  #   hostname: ${NGINX_HOSTNAME}
-  #   container_name: ${NGINX_CONTAINER_NAME}
-  #   ports:
-  #     - "0.0.0.0:${NGINX_PORT}:${NGINX_PORT}"
-  #     - "0.0.0.0:${NGINX_PORT_SSL}:${NGINX_PORT_SSL}"
-  #   network_mode: none
-  #   privileged: true
-  #   volumes:
-  #     - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
-  #     - ./build/certs/ssl:/etc/nginx/ssl
 
-  # dns:
+  # example:
   #   build:
   #     context: ./build/ubuntu-net
   #   container_name: dns
@@ -50,11 +30,15 @@ services:
 
   proxy:
     build:
-      context: ./build/ubuntu-net
-    container_name: proxy
+      context: ./build/proxy
+      args:
+        NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
+        NGINX_IMAGE: ${NGINX_IMAGE}
+    container_name: ${NGINX_CONTAINER_NAME}
     network_mode: none
     privileged: true
-    command: sleep infinity
+    restart: ${NGINX_RESTART_POLICY}
+    #command: sleep infinity
 
   proxy_collector:
     build:
@@ -66,11 +50,18 @@ services:
 
   webserver:
     build:
-      context: ./build/ubuntu-net
-    container_name: webserver
+      context: ./build/webserver
+      args:
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
+        WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+    container_name: ${WEBSERVER_CONTAINER_NAME}
     network_mode: none
     privileged: true
-    command: sleep infinity
+    environment:
+      WEBSERVER_PORT: ${WEBSERVER_PORT}
+      WEBSERVER_HOST: ${WEBSERVER_HOST}
+      WEBSERVER_DEBUG: ${WEBSERVER_DEBUG}
+    #command: sleep infinity
 
   web_collector:
     build:
@@ -78,7 +69,7 @@ services:
     container_name: web_collector
     network_mode: none
     privileged: true
-    command: sleep infinity
+    #command: sleep infinity
 
   ryu:
     build:
@@ -142,76 +133,3 @@ services:
     hostname: "sw4"
     container_name: "sw4"
     network_mode: none
-  # webserver:
-  #   build:
-  #     context: ./build/webserver
-  #     args:
-  #       WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
-  #       WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
-  #       WEBSERVER_PORT: ${WEBSERVER_PORT}
-  #   restart: ${WEBSERVER_RESTART_POLICY}
-  #   container_name: ${WEBSERVER_CONTAINER_NAME}
-  #   hostname: ${WEBSERVER_HOSTNAME}
-  #   # network_mode: none
-  #   environment:
-  #     WEBSERVER_PORT: ${WEBSERVER_PORT}
-  #     WEBSERVER_HOST: ${WEBSERVER_HOST}
-  #     WEBSERVER_DEBUG: ${WEBSERVER_DEBUG}
-  #   ports:
-  #     - "0.0.0.0:${WEBSERVER_PORT}:${WEBSERVER_PORT}"
-
-  # dns_collector:
-  #   image: python:3.9-slim
-  #   container_name: dns_collector
-  #   network_mode: none
-  #   cap_add:
-  #     - NET_RAW
-  #     - NET_ADMIN
-  #   volumes:
-  #     - ./dns_collector.py:/collector.py
-  #   depends_on:
-  #     - kafka
-  #   command: sh -c "pip install scapy kafka-python && python /collector.py"
-
-  # proxy_collector:
-  #   image: python:3.9-slim
-  #   container_name: proxy_collector
-  #   network_mode: none
-  #   cap_add:
-  #     - NET_RAW
-  #     - NET_ADMIN
-  #   volumes:
-  #     - ./proxy_collector.py:/collector.py
-  #   depends_on:
-  #     - kafka
-  #   command: sh -c "pip install scapy kafka-python && python /collector.py"
-
-  # web_collector:
-  #   image: python:3.9-slim
-  #   container_name: web_collector
-  #   network_mode: none
-  #   cap_add:
-  #     - NET_RAW
-  #     - NET_ADMIN
-  #   volumes:
-  #     - ./web_collector.py:/collector.py
-  #   depends_on:
-  #     - kafka
-  #   command: sh -c "pip install scapy kafka-python && python /collector.py"
-
-  # ryu:
-  #   build:
-  #     context: ./build/ryu
-  #     args:
-  #       RYU_IMAGE: ${RYU_IMAGE}
-  #       RYU_IMAGE_TAG: ${RYU_IMAGE_TAG}
-  #   restart: ${RYU_RESTART_POLICY}
-  #   container_name: ${RYU_CONTAINER_NAME}
-  #   hostname: ${RYU_HOSTNAME}
-  #   ports:
-  #     - "0.0.0.0:${RYU_PORT}:${RYU_PORT}"
-  #   # network_mode: none
-  #   volumes:
-  #     - ./ddos_blocker.py:/ddos_blocker.py
-  #   command: sh -c "pip install ryu && ryu-manager --ofp-tcp-listen-port 6633 /ddos_blocker.py ryu.app.ofctl_rest"
-
