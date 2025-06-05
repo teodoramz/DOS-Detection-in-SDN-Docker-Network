@@ -6,6 +6,8 @@
 
 ./sw1-dns.sh
 ./sw2-proxy.sh
+./sw3-services.sh
+./sw4-containers.sh
 
 ./routing.sh
 

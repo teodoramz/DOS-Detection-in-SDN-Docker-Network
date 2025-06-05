@@ -1,67 +1,19 @@
 version: '3.8'
 services:
-  # kafka:
-  #   build:
-  #     context: ./build/kafka-kraft
-  #     args:
-  #       KAFKA_IMAGE: ${KAFKA_IMAGE}
-  #       KAFKA_IMAGE_TAG: ${KAFKA_IMAGE_TAG}
-  #   restart: ${KAFKA_RESTART_POLICY}
-  #   hostname: ${KAFKA_HOSTNAME}
-  #   container_name: ${KAFKA_CONTAINER_NAME}
-  #   ports:
-  #     - 0.0.0.0:${KAFKA_WORKERS_PORT}:${KAFKA_WORKERS_PORT}
-  #     - 0.0.0.0:${KAFKA_INTERNAL_PORT}:${KAFKA_INTERNAL_PORT}
-  #   environment:
-  #     KAFKA_KRAFT_MODE: ${KAFKA_KRAFT_MODE}
-  #     KAFKA_PROCESS_ROLES: ${KAFKA_PROCESS_ROLES}
-  #     KAFKA_NODE_ID: ${KAFKA_NODE_ID}
-  #     KAFKA_CONTROLLER_QUORUM_VOTERS: ${KAFKA_CONTROLLER_QUORUM_VOTERS}
-  #     KAFKA_LISTENERS: ${KAFKA_LISTENERS}
-  #     KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: ${KAFKA_LISTENER_SECURITY_PROTOCOL_MAP}
-  #     KAFKA_INTER_BROKER_LISTENER_NAME: ${KAFKA_INTER_BROKER_LISTENER_NAME}
-  #     KAFKA_CONTROLLER_LISTENER_NAMES: ${KAFKA_CONTROLLER_LISTENER_NAMES}
-  #     KAFKA_ADVERTISED_LISTENERS: ${KAFKA_ADVERTISED_LISTENERS} # Corectat pentru acces intern
-  #     KAFKA_LOG_DIRS: ${KAFKA_LOG_DIRS}
-  #     KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${KAFKA_AUTO_CREATE_TOPICS_ENABLE}
-  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
-  #     KAFKA_LOG_RETENTION_HOURS: ${KAFKA_LOG_RETENTION_HOURS}
-  #     KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: ${KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS}
-  #     CLUSTER_ID: ${CLUSTER_ID}
-  #   volumes:
-  #     - ./volumes/kafka-kraft/data:${KAFKA_VOLUME}
-
-  # kafdrop:
-  #   build:
-  #     context: ./build/kafka-kraft
-  #     args:
-  #       KAFKA_IMAGE: ${KAFDROP_IMAGE}
-  #       KAFKA_IMAGE_TAG: ${KAFDROP_IMAGE_TAG}
-
-  #   restart: ${KAFDROP_RESTART_POLICY}
-  #   hostname: ${KAFDROP_HOSTNAME}
-  #   container_name: ${KAFDROP_CONTAINER_NAME}
-  #   ports:
-  #     - 0.0.0.0:${KAFDROP_PORT}:${KAFDROP_PORT}
-  #   environment:
-  #     KAFKA_BROKERCONNECT: ${KAFKA_BROKERCONNECT}
-  #   depends_on:
-  #     - "kafka"
-
-  # dns:
-  #   build:
-  #     context: ./build/dns
-  #     args:
-  #       BIND9_IMAGE: ${BIND9_IMAGE}
-  #       BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-  #   restart: ${BIND9_RESTART_POLICY}
-  #   hostname: ${BIND9_HOSTNAME}
-  #   container_name: ${BIND9_CONTAINER_NAME}
-  #   network_mode: none
-  #   privileged: true
-  #   ports:
-  #     - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_UDP}/udp"
-  #     - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_TCP}/tcp"
+  dns:
+    build:
+      context: ./build/dns
+      args:
+        BIND9_IMAGE: ${BIND9_IMAGE}
+        BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
+    restart: ${BIND9_RESTART_POLICY}
+    hostname: ${BIND9_HOSTNAME}
+    container_name: ${BIND9_CONTAINER_NAME}
+    network_mode: none
+    privileged: true
+    # ports:
+    #   - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_UDP}/udp"
+    #   - "0.0.0.0:${BIND9_PORT_HOST}:${BIND9_PORT_TCP}/tcp"
   # proxy:
   #   build:
   #     context: ./build/proxy
@@ -80,34 +32,50 @@ services:
   #     - ./build/proxy/nginx.conf:/etc/nginx/nginx.conf
   #     - ./build/certs/ssl:/etc/nginx/ssl
 
-  container-test1:
+  # dns:
+  #   build:
+  #     context: ./build/ubuntu-net
+  #   container_name: dns
+  #   network_mode: none
+  #   privileged: true
+  #   command: sleep infinity
+
+  dns_collector:
     build:
       context: ./build/ubuntu-net
-    container_name: container-test1
+    container_name: dns_collector
     network_mode: none
     privileged: true
     command: sleep infinity
 
-  container-test2:
+  proxy:
     build:
       context: ./build/ubuntu-net
-    container_name: container-test2
+    container_name: proxy
     network_mode: none
     privileged: true
     command: sleep infinity
 
-  container-test3:
+  proxy_collector:
     build:
       context: ./build/ubuntu-net
-    container_name: container-test3
+    container_name: proxy_collector
     network_mode: none
     privileged: true
     command: sleep infinity
 
-  container-test4:
+  webserver:
     build:
       context: ./build/ubuntu-net
-    container_name: container-test4
+    container_name: webserver
+    network_mode: none
+    privileged: true
+    command: sleep infinity
+
+  web_collector:
+    build:
+      context: ./build/ubuntu-net
+    container_name: web_collector
     network_mode: none
     privileged: true
     command: sleep infinity
@@ -118,8 +86,6 @@ services:
       args:
         SDN_IMAGE_TAG: ${SDN_IMAGE_TAG}
         SDN_IMAGE: ${SDN_IMAGE}
-      #   BIND9_IMAGE: ${BIND9_IMAGE}
-      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
     restart: ${SDN_RESTART_POLICY}
     privileged: true
     hostname: "ryu"
@@ -232,17 +198,6 @@ services:
   #   depends_on:
   #     - kafka
   #   command: sh -c "pip install scapy kafka-python && python /collector.py"
-
-  # ml_worker:
-  #   image: python:3.9-slim
-  #   container_name: ml_worker
-  #   network_mode: none
-  #   volumes:
-  #     - ./ml_worker.py:/ml_worker.py
-  #   depends_on:
-  #     - kafka
-  #     - ryu
-  #   command: sh -c "pip install scapy kafka-python requests && python /ml_worker.py"
 
   # ryu:
   #   build:
