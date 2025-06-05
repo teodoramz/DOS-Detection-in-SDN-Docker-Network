@@ -14,8 +14,13 @@ sudo ovs-vsctl add-port br0 gre-to-vm1 \
      options:local_ip=192.168.241.143 \
      options:remote_ip=192.168.241.142
 
+sudo ip link set gre-to-vm1 mtu 1400
+sudo ip link set br0 mtu 1400
+
 sudo iptables -A INPUT  -p gre -j ACCEPT
 sudo iptables -A OUTPUT -p gre -j ACCEPT
+iptables -I FORWARD -i gre-to-vm1 -j ACCEPT
+iptables -I FORWARD -o gre-to-vm1 -j ACCEPT
 
 # allow L2/L3 traffic through br0
 sudo sysctl -w net.ipv4.ip_forward=1
