@@ -22,11 +22,11 @@ services:
 
   dns_collector:
     build:
-      context: ./build/ubuntu-net
+      context: ./build/dns-collector
     container_name: dns_collector
     network_mode: none
     privileged: true
-    command: sleep infinity
+    #command: sleep infinity
 
   proxy:
     build:
