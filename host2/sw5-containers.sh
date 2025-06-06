@@ -14,61 +14,76 @@ docker exec sw5 ovs-vsctl add-port br-sw5 eth_kafka
 docker exec sw5 ip link set eth_kafka up
 
 # Kafdrop
-ip link add veth-kafdrop-srv type veth peer name veth-sw5-kafdrop
-ip link set veth-kafdrop-srv netns $(docker inspect -f '{{.State.Pid}}' kafdrop)
-ip link set veth-sw5-kafdrop netns $(docker inspect -f '{{.State.Pid}}' sw5)
+ip link add veth-kfp-srv type veth peer name veth-sw5-kfp
+ip link set veth-kfp-srv netns $(docker inspect -f '{{.State.Pid}}' kafdrop)
+ip link set veth-sw5-kfp netns $(docker inspect -f '{{.State.Pid}}' sw5)
 
-docker exec kafdrop ip link set veth-kafdrop-srv name eth0
+docker exec kafdrop ip link set veth-kfp-srv name eth0
 docker exec kafdrop ip addr add 10.0.5.6/24 dev eth0
 docker exec kafdrop ip addr add 10.255.255.100/24 dev eth0
 docker exec kafdrop ip link set eth0 up
 docker exec kafdrop ip route add default via 10.0.5.1
 
-docker exec sw5 ip link set veth-sw5-kafdrop name eth_kafdrop
-docker exec sw5 ovs-vsctl add-port br-sw5 eth_kafdrop
-docker exec sw5 ip link set eth_kafdrop up
+docker exec sw5 ip link set veth-sw5-kfp name eth_kfp
+docker exec sw5 ovs-vsctl add-port br-sw5 eth_kfp
+docker exec sw5 ip link set eth_kfp up
+
+# minio
+ip link add veth-s3-srv type veth peer name veth-sw5-s3
+ip link set veth-s3-srv netns $(docker inspect -f '{{.State.Pid}}' minio)
+ip link set veth-sw5-s3 netns $(docker inspect -f '{{.State.Pid}}' sw5)
+
+docker exec minio ip link set veth-s3-srv name eth0
+docker exec minio ip addr add 10.0.5.9/24 dev eth0
+docker exec minio ip addr add 10.255.255.101/24 dev eth0
+docker exec minio ip link set eth0 up
+docker exec minio ip route add default via 10.0.5.1
+
+docker exec sw5 ip link set veth-sw5-s3 name eth_s3
+docker exec sw5 ovs-vsctl add-port br-sw5 eth_s3
+docker exec sw5 ip link set eth_s3 up
 
 # worker1
-ip link add veth-worker1-srv type veth peer name veth-sw5-worker1
-ip link set veth-worker1-srv netns $(docker inspect -f '{{.State.Pid}}' worker1)
-ip link set veth-sw5-worker1 netns $(docker inspect -f '{{.State.Pid}}' sw5)
+ip link add veth-w1-srv type veth peer name veth-sw5-w1
+ip link set veth-w1-srv netns $(docker inspect -f '{{.State.Pid}}' worker1)
+ip link set veth-sw5-w1 netns $(docker inspect -f '{{.State.Pid}}' sw5)
 
-docker exec worker1 ip link set veth-worker1-srv name eth0
+docker exec worker1 ip link set veth-w1-srv name eth0
 docker exec worker1 ip addr add 10.0.5.11/24 dev eth0
 docker exec worker1 ip addr add 10.255.255.51/24 dev eth0
 docker exec worker1 ip link set eth0 up
 docker exec worker1 ip route add default via 10.0.5.1
 
-docker exec sw5 ip link set veth-sw5-worker1 name eth_worker1
-docker exec sw5 ovs-vsctl add-port br-sw5 eth_worker1
-docker exec sw5 ip link set eth_worker1 up
+docker exec sw5 ip link set veth-sw5-w1 name eth_w1
+docker exec sw5 ovs-vsctl add-port br-sw5 eth_w1
+docker exec sw5 ip link set eth_w1 up
 
 # worker2
-ip link add veth-worker2-srv type veth peer name veth-sw5-worker2
-ip link set veth-worker2-srv netns $(docker inspect -f '{{.State.Pid}}' worker2)
-ip link set veth-sw5-worker2 netns $(docker inspect -f '{{.State.Pid}}' sw5)
+ip link add veth-w2-srv type veth peer name veth-sw5-w2
+ip link set veth-w2-srv netns $(docker inspect -f '{{.State.Pid}}' worker2)
+ip link set veth-sw5-w2 netns $(docker inspect -f '{{.State.Pid}}' sw5)
 
-docker exec worker2 ip link set veth-worker2-srv name eth0
+docker exec worker2 ip link set veth-w2-srv name eth0
 docker exec worker2 ip addr add 10.0.5.12/24 dev eth0
 docker exec worker2 ip addr add 10.255.255.52/24 dev eth0
 docker exec worker2 ip link set eth0 up
 docker exec worker2 ip route add default via 10.0.5.1
 
-docker exec sw5 ip link set veth-sw5-worker2 name eth_worker2
-docker exec sw5 ovs-vsctl add-port br-sw5 eth_worker2
-docker exec sw5 ip link set eth_worker2 up
+docker exec sw5 ip link set veth-sw5-w2 name eth_w2
+docker exec sw5 ovs-vsctl add-port br-sw5 eth_w2
+docker exec sw5 ip link set eth_w2 up
 
 # worker3
-ip link add veth-worker3-srv type veth peer name veth-sw5-worker3
-ip link set veth-worker3-srv netns $(docker inspect -f '{{.State.Pid}}' worker3)
-ip link set veth-sw5-worker3 netns $(docker inspect -f '{{.State.Pid}}' sw5)
+ip link add veth-w3-srv type veth peer name veth-sw5-w3
+ip link set veth-w3-srv netns $(docker inspect -f '{{.State.Pid}}' worker3)
+ip link set veth-sw5-w3 netns $(docker inspect -f '{{.State.Pid}}' sw5)
 
-docker exec worker3 ip link set veth-worker3-srv name eth0
+docker exec worker3 ip link set veth-w3-srv name eth0
 docker exec worker3 ip addr add 10.0.5.13/24 dev eth0
 docker exec worker3 ip addr add 10.255.255.53/24 dev eth0
 docker exec worker3 ip link set eth0 up
 docker exec worker3 ip route add default via 10.0.5.1
 
-docker exec sw5 ip link set veth-sw5-worker3 name eth_worker3
-docker exec sw5 ovs-vsctl add-port br-sw5 eth_worker3
-docker exec sw5 ip link set eth_worker3 up
+docker exec sw5 ip link set veth-sw5-w3 name eth_w3
+docker exec sw5 ovs-vsctl add-port br-sw5 eth_w3
+docker exec sw5 ip link set eth_w3 up
