@@ -4,6 +4,7 @@ docker exec sw5 ovs-vsctl \
   -- set interface gw5 type=internal
 docker exec sw5 ip addr add 10.0.5.1/24 dev gw5
 docker exec sw5 ip link set gw5 up
+docker exec sw5 ip link set gw5  mtu 1400 
 docker exec sw5 sysctl -w net.ipv4.ip_forward=1
 
 # sw5 - sw1/sw2 static link via mgmt

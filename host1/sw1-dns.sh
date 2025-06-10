@@ -7,11 +7,13 @@ docker exec dns ip link set veth-dns-srv name eth0
 docker exec dns ip addr add 10.0.1.2/24 dev eth0
 docker exec dns ip addr add 10.255.255.11/24 dev eth0
 docker exec dns ip link set eth0 up
+docker exec dns ip link set eth0 mtu 1400 
 docker exec dns ip route add default via 10.0.1.1
 
 docker exec sw1 ip link set veth-sw1-dns name eth_dns
 docker exec sw1 ovs-vsctl add-port br-sw1 eth_dns
 docker exec sw1 ip link set eth_dns up
+docker exec sw1 ip link set eth_dns mtu 1400 
 
 # DNS-COL (dns collector container)
 ip link add veth-dns-col type veth peer name veth-sw1-dcol
@@ -22,12 +24,14 @@ docker exec dns_collector ip link set veth-dns-col name eth0
 docker exec dns_collector ip addr add 10.0.1.6/24 dev eth0
 docker exec dns_collector ip addr add 10.255.255.12/24 dev eth0 
 docker exec dns_collector ip link set eth0 up
+docker exec dns_collector ip link set eth0 mtu 1400 
 #docker exec dns_collector ip route add default via 10.0.1.1
+
 
 docker exec sw1 ip link set veth-sw1-dcol name eth_dcol
 docker exec sw1 ovs-vsctl add-port br-sw1 eth_dcol
 docker exec sw1 ip link set eth_dcol up
-
+docker exec sw1 ip link set eth_dcol mtu 1400 
 
 docker exec sw1 ovs-vsctl \
   -- --id=@MON get Port eth_dns       \

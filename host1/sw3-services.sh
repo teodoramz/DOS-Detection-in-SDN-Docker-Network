@@ -7,11 +7,13 @@ docker exec webserver ip link set veth-proxy3-srv name eth0
 docker exec webserver ip addr add 10.0.3.2/24 dev eth0
 docker exec webserver ip addr add 10.255.255.31/24  dev eth0  # mgmt
 docker exec webserver ip link set eth0 up
+docker exec webserver ip link set eth0  mtu 1400 
 docker exec webserver ip route add default via 10.0.3.1
 
 docker exec sw3 ip link set veth-sw3-psrv name eth_psrv
 docker exec sw3 ovs-vsctl add-port br-sw3 eth_psrv
 docker exec sw3 ip link set eth_psrv up
+docker exec sw3 ip link set eth_psrv  mtu 1400 
 
 
 # SERVICES-COL (webserver collector container)
@@ -23,11 +25,13 @@ docker exec web_collector ip link set veth-proxy3-col name eth0
 docker exec web_collector ip addr add 10.0.3.6/24 dev eth0
 docker exec web_collector ip addr add 10.255.255.32/24 dev eth0  # mgmt
 docker exec web_collector ip link set eth0 up
+docker exec web_collector ip link set eth0  mtu 1400 
 #docker exec web_collector ip route add default via 10.0.3.1
 
 docker exec sw3 ip link set veth-sw3-pcol name eth_pcol
 docker exec sw3 ovs-vsctl add-port br-sw3 eth_pcol
 docker exec sw3 ip link set eth_pcol up
+docker exec sw3 ip link set eth_pcol  mtu 1400 
 
 docker exec sw3 ovs-vsctl \
   -- --id=@MON get Port eth_psrv       \
