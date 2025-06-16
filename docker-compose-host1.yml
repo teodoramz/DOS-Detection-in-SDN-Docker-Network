@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 services:
   dns:
     build:
@@ -43,6 +43,14 @@ services:
     restart: ${NGINX_RESTART_POLICY}
     #command: sleep infinity
 
+  # proxy_collector:
+  #   build:
+  #     context: ./build/ubuntu-net
+  #   container_name: proxy_collector
+  #   network_mode: none
+  #   privileged: true
+  #   command: sleep infinity
+
   proxy_collector:
     build:
       context: ./build/proxy-collector
@@ -52,7 +60,7 @@ services:
     container_name: proxy_collector
     network_mode: none
     privileged: true
-    command: sleep infinity
+    #command: sleep infinity
 
   webserver:
     build:
@@ -69,13 +77,23 @@ services:
       WEBSERVER_DEBUG: ${WEBSERVER_DEBUG}
     #command: sleep infinity
 
+  # web_collector:
+  #   build:
+  #     context: ./build/ubuntu-net
+  #   container_name: web_collector
+  #   network_mode: none
+  #   privileged: true
+  #   #command: sleep infinity
+
   web_collector:
     build:
-      context: ./build/ubuntu-net
+      context: ./build/service-collector
+      args:
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
+        WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
     container_name: web_collector
     network_mode: none
     privileged: true
-    #command: sleep infinity
 
   ryu:
     build:
