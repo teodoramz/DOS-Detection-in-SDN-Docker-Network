@@ -23,10 +23,13 @@ services:
   dns_collector:
     build:
       context: ./build/dns-collector
+      args:
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
+        WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
     container_name: dns_collector
     network_mode: none
     privileged: true
-    #command: sleep infinity
+    command: sleep infinity
 
   proxy:
     build:
@@ -42,7 +45,10 @@ services:
 
   proxy_collector:
     build:
-      context: ./build/ubuntu-net
+      context: ./build/proxy-collector
+      args:
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
+        WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
     container_name: proxy_collector
     network_mode: none
     privileged: true

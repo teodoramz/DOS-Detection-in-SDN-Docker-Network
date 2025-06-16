@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""
-python3 script.py input.csv output.csv
-"""
 import argparse
 import pandas as pd
 
@@ -17,7 +14,7 @@ COLUMN_MAPPING = {
     'Tot Fwd Pkts': 'Total Fwd Packets',
     'Tot Bwd Pkts': 'Total Backward Packets',
     'TotLen Fwd Pkts': 'Total Length of Fwd Packets',
-    'TotLen Bwd Pkts': 'Total Length of Bwd Packets',
+    'Total Length of Bwd Packet': 'Total Length of Bwd Packets',
     'Fwd Pkt Len Max': 'Fwd Packet Length Max',
     'Fwd Pkt Len Min': 'Fwd Packet Length Min',
     'Fwd Pkt Len Mean': 'Fwd Packet Length Mean',
@@ -50,8 +47,8 @@ COLUMN_MAPPING = {
     'Bwd Header Len': 'Bwd Header Length',
     'Fwd Pkts/s': 'Fwd Packets/s',
     'Bwd Pkts/s': 'Bwd Packets/s',
-    'Pkt Len Min': 'Min Packet Length',
-    'Pkt Len Max': 'Max Packet Length',
+    'Packet Length Min': 'Min Packet Length',
+    'Packet Length Max': 'Max Packet Length',
     'Pkt Len Mean': 'Packet Length Mean',
     'Pkt Len Std': 'Packet Length Std',
     'Pkt Len Var': 'Packet Length Variance',
@@ -61,12 +58,12 @@ COLUMN_MAPPING = {
     'PSH Flag Cnt': 'PSH Flag Count',
     'ACK Flag Cnt': 'ACK Flag Count',
     'URG Flag Cnt': 'URG Flag Count',
-    'CWE Flag Count': 'CWE Flag Count',
+    'CWR Flag Count': 'CWE Flag Count',
     'ECE Flag Cnt': 'ECE Flag Count',
     'Down/Up Ratio': 'Down/Up Ratio',
     'Pkt Size Avg': 'Average Packet Size',
-    'Fwd Seg Size Avg': 'Avg Fwd Segment Size',
-    'Bwd Seg Size Avg': 'Avg Bwd Segment Size',
+    'Fwd Segment Size Avg': 'Avg Fwd Segment Size',
+    'Bwd Segment Size Avg': 'Avg Bwd Segment Size',
     'Fwd Byts/b Avg': 'Fwd Avg Bytes/Bulk',
     'Fwd Pkts/b Avg': 'Fwd Avg Packets/Bulk',
     'Fwd Blk Rate Avg': 'Fwd Avg Bulk Rate',
@@ -77,8 +74,8 @@ COLUMN_MAPPING = {
     'Subflow Fwd Byts': 'Subflow Fwd Bytes',
     'Subflow Bwd Pkts': 'Subflow Bwd Packets',
     'Subflow Bwd Byts': 'Subflow Bwd Bytes',
-    'Init Fwd Win Byts': 'Init_Win_bytes_forward',
-    'Init Bwd Win Byts': 'Init_Win_bytes_backward',
+    'FWD Init Win Bytes': 'Init_Win_bytes_forward',
+    'Bwd Init Win Bytes': 'Init_Win_bytes_backward',
     'Fwd Act Data Pkts': 'act_data_pkt_fwd',
     'Fwd Seg Size Min': 'min_seg_size_forward',
     'Active Mean': 'Active Mean',
@@ -101,9 +98,9 @@ def rename_columns(input_path: str, output_path: str):
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Redenumire coloane CSV conform mapării')
-    parser.add_argument('input_file', help='Fișier CSV de intrare')
-    parser.add_argument('output_file', help='Fișier CSV de ieșire')
+    parser = argparse.ArgumentParser(description='Renaming CSV columns')
+    parser.add_argument('input_file', help='Input CSV file with original columns')
+    parser.add_argument('output_file', help='Output CSV file with renamed columns')
     return parser.parse_args()
 
 
