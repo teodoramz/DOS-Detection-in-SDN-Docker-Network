@@ -31,7 +31,6 @@ sudo iptables -I FORWARD -o br0 -j ACCEPT
 # static route to forward traffic through the infrastructure
 sudo ip route add 10.0.0.0/16 dev br0 
 
-
 # anti spoof disable
 sudo sysctl -w net.ipv4.conf.all.rp_filter=0
 sudo sysctl -w net.ipv4.conf.default.rp_filter=0

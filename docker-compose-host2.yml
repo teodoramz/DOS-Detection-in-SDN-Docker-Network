@@ -51,28 +51,14 @@ services:
       MINIO_IMAGE_TAG: ${MINIO_IMAGE_TAG}
     hostname: ${MINIO_HOSTNAME}
     container_name: ${MINIO_CONTAINER_NAME}
-    network_mode: none          # la fel ca restul stack-ului tău
+    network_mode: none
     privileged: true
     environment:
       MINIO_ROOT_USER:      ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD:  ${MINIO_ROOT_PASSWORD}
-      # URL pe care îl vei pune în link-urile presign-ate (opţional)
       MINIO_SERVER_URL:     ${MINIO_SERVER_URL}
-    # command: server /data --console-address ":9001"
-    # healthcheck:
-    #   test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-    #   interval: 30s
-    #   timeout: 20s
-    #   retries: 5
     volumes:
       - ./volumes/minio/data:/data
-  # example:
-  #   build:
-  #     context: ./build/ubuntu-net
-  #   container_name: kafdrop
-  #   network_mode: none
-  #   privileged: true
-  #   command: sleep infinity
 
   worker1:
     build:

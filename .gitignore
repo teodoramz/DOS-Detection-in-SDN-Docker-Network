@@ -1,3 +1,5 @@
 ./volumes/kafka-kraft/*
 .env
 ./volumes/*
+*.crt
+*.key

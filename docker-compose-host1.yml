@@ -12,14 +12,6 @@ services:
     network_mode: none
     privileged: true
 
-  # example:
-  #   build:
-  #     context: ./build/ubuntu-net
-  #   container_name: dns
-  #   network_mode: none
-  #   privileged: true
-  #   command: sleep infinity
-
   dns_collector:
     build:
       context: ./build/dns-collector
@@ -41,15 +33,7 @@ services:
     network_mode: none
     privileged: true
     restart: ${NGINX_RESTART_POLICY}
-    #command: sleep infinity
 
-  # proxy_collector:
-  #   build:
-  #     context: ./build/ubuntu-net
-  #   container_name: proxy_collector
-  #   network_mode: none
-  #   privileged: true
-  #   command: sleep infinity
 
   proxy_collector:
     build:
@@ -60,7 +44,6 @@ services:
     container_name: proxy_collector
     network_mode: none
     privileged: true
-    #command: sleep infinity
 
   webserver:
     build:
@@ -75,15 +58,6 @@ services:
       WEBSERVER_PORT: ${WEBSERVER_PORT}
       WEBSERVER_HOST: ${WEBSERVER_HOST}
       WEBSERVER_DEBUG: ${WEBSERVER_DEBUG}
-    #command: sleep infinity
-
-  # web_collector:
-  #   build:
-  #     context: ./build/ubuntu-net
-  #   container_name: web_collector
-  #   network_mode: none
-  #   privileged: true
-  #   #command: sleep infinity
 
   web_collector:
     build:
@@ -113,10 +87,6 @@ services:
   sw1:
     build:
       context: ./build/openvswitch
-      # args:
-      #   BIND9_IMAGE: ${BIND9_IMAGE}
-      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-      # restart: ${BIND9_RESTART_POLICY}
     privileged: true
     hostname: "sw1"
     container_name: "sw1"
@@ -125,10 +95,6 @@ services:
   sw2:
     build:
       context: ./build/openvswitch
-      # args:
-      #   BIND9_IMAGE: ${BIND9_IMAGE}
-      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-      # restart: ${BIND9_RESTART_POLICY}
     privileged: true
     hostname: "sw2"
     container_name: "sw2"
@@ -137,10 +103,6 @@ services:
   sw3:
     build:
       context: ./build/openvswitch
-      # args:
-      #   BIND9_IMAGE: ${BIND9_IMAGE}
-      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-      # restart: ${BIND9_RESTART_POLICY}
     privileged: true
     hostname: "sw3"
     container_name: "sw3"
@@ -149,10 +111,6 @@ services:
   sw4:
     build:
       context: ./build/openvswitch
-      # args:
-      #   BIND9_IMAGE: ${BIND9_IMAGE}
-      #   BIND9_IMAGE_TAG: ${BIND9_IMAGE_TAG}
-      # restart: ${BIND9_RESTART_POLICY}
     privileged: true
     hostname: "sw4"
     container_name: "sw4"
