@@ -18,10 +18,9 @@ services:
       args:
         WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
         WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
-    container_name: dns_collector
+    container_name: ${DNS_COLLECTOR_CONTAINER_NAME}
     network_mode: none
     privileged: true
-    command: sleep infinity
 
   proxy:
     build:
@@ -41,7 +40,7 @@ services:
       args:
         WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
         WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
-    container_name: proxy_collector
+    container_name: ${PROXY_COLLECTOR_CONTAINER_NAME}
     network_mode: none
     privileged: true
 
@@ -65,7 +64,7 @@ services:
       args:
         WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
         WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
-    container_name: web_collector
+    container_name: ${WEB_COLLECTOR_CONTAINER_NAME}
     network_mode: none
     privileged: true
 
@@ -77,41 +76,53 @@ services:
         SDN_IMAGE: ${SDN_IMAGE}
     restart: ${SDN_RESTART_POLICY}
     privileged: true
-    hostname: "ryu"
-    container_name: "ryu"
+    hostname: ${SDN_HOSTNAME}
+    container_name: ${SDN_CONTAINER_NAME}
     network_mode: host
     ports:
-      - "0.0.0.0:6633:6633"
-      - "0.0.0.0:8080:8080"
+      - "${SDN_HOST}:${SDN_PORT}:${SDN_PORT}"
+      - "${SDN_REST_API_HOST}:${SDN_PORT_REST_API}:${SDN_PORT_REST_API}"
 
   sw1:
     build:
       context: ./build/openvswitch
+      args:
+        OPENVSWITCH_IMAGE_TAG: ${OPENVSWITCH_IMAGE_TAG}
+        OPENVSWITCH_IMAGE: ${OPENVSWITCH_IMAGE}
     privileged: true
-    hostname: "sw1"
-    container_name: "sw1"
+    hostname: ${OPENVSWITCH_SW1_HOSTNAME}
+    container_name: ${OPENVSWITCH_SW1_CONTAINER_NAME}
     network_mode: none
 
   sw2:
     build:
       context: ./build/openvswitch
+      args:
+        OPENVSWITCH_IMAGE_TAG: ${OPENVSWITCH_IMAGE_TAG}
+        OPENVSWITCH_IMAGE: ${OPENVSWITCH_IMAGE}
     privileged: true
-    hostname: "sw2"
-    container_name: "sw2"
+    hostname: ${OPENVSWITCH_SW2_HOSTNAME}
+    container_name: ${OPENVSWITCH_SW2_CONTAINER_NAME}
     network_mode: none
 
   sw3:
     build:
       context: ./build/openvswitch
+      args:
+        OPENVSWITCH_IMAGE_TAG: ${OPENVSWITCH_IMAGE_TAG}
+        OPENVSWITCH_IMAGE: ${OPENVSWITCH_IMAGE}
     privileged: true
-    hostname: "sw3"
-    container_name: "sw3"
+    hostname: ${OPENVSWITCH_SW3_HOSTNAME}
+    container_name: ${OPENVSWITCH_SW3_CONTAINER_NAME}
     network_mode: none
 
   sw4:
     build:
       context: ./build/openvswitch
+      args:
+        OPENVSWITCH_IMAGE_TAG: ${OPENVSWITCH_IMAGE_TAG}
+        OPENVSWITCH_IMAGE: ${OPENVSWITCH_IMAGE}
     privileged: true
-    hostname: "sw4"
-    container_name: "sw4"
+    hostname: ${OPENVSWITCH_SW4_HOSTNAME}
+    container_name: ${OPENVSWITCH_SW4_CONTAINER_NAME}
     network_mode: none

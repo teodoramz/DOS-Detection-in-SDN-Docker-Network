@@ -13,11 +13,14 @@ echo "Configuring DNS and DNS collector containers and their network interfaces.
 echo "Configuring Proxy and Proxy collector container and their network interfaces..."
 ./5.sw2-proxy.sh
 
+echo "Configuring services containers and their network interfaces..."
 ./6.sw3-services.sh
 
-./7.sw4-containers.sh
+echo "Configuring connection of collectors to OpenvSwitch 4..."
+./7.sw4-collectors.sh
 
+echo "Configuring the routing between switches..."
 ./8.routing.sh
 
-
+echo "Configuring Ryu controller..."
 ./9.ryu-sw.sh
