@@ -2,9 +2,8 @@ name: Normalize line endings
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches-ignore:
+      - 'normalize-line-endings/**'
   workflow_dispatch:
 
 jobs:
@@ -14,8 +13,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Convert CRLF to LF using sed
+        id: normalize
         shell: bash
         run: |
           echo "Searching for CRLF files..."
@@ -26,26 +28,22 @@ jobs:
           else
             echo "Normalizing line endings..."
             echo "$files" | while read -r f; do
+              [[ -z "$f" ]] && continue
               printf "  -> %s\n" "$f"
               sed -i 's/\r$//' "$f"
             done
             echo "changes=true" >> $GITHUB_ENV
           fi
 
-      - name: Check for changes
-        run: |
-          if [[ "$(git status --porcelain)" ]]; then
-            echo "Files changed:"
-            git status --short
-          else
-            echo "No files changed."
-          fi
-
-      - name: Commit normalized files
+      - name: Create Pull Request with normalized files
         if: env.changes == 'true'
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git add -A
-          git commit -m "Normalize line endings (CRLF → LF)"
-          git push
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "Normalize line endings (CRLF → LF)"
+          branch: normalize-line-endings/${{ github.run_id }}
+          title: "Normalize line endings (CRLF → LF)"
+          body: |
+            This PR normalizes line endings in the repository.
+            Files were automatically converted from CRLF to LF.
+          base: ${{ github.ref_name }}
+          delete-branch: true
