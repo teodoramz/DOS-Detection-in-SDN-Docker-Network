@@ -1,0 +1,7 @@
+Name,Host,Local Subnet,Internal Gateway,Mgmt IP
+sw1,host1,10.0.1.0/24,10.0.1.1/24,10.255.255.1/24
+sw2,host1,10.0.2.0/24,10.0.2.1/24,10.255.255.2/24
+sw3,host1,10.0.3.0/24,10.0.3.1/24,10.255.255.3/24
+sw4,host1,10.0.4.0/24,10.0.4.1/24,10.255.255.4/24
+sw5,host2,10.0.5.0/24,10.0.5.1/24,10.255.255.5/24
+Ryu-Controller (docker container),host1,docker-host-network,-,10.255.255.254/24
