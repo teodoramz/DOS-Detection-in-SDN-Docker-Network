@@ -8,7 +8,7 @@ from pathlib import Path
 DDOS_DETECTION_HOME = Path(os.getenv("DDOS_DETECTION_HOME", Path(__file__).resolve().parent))
 
 env_file_path = DDOS_DETECTION_HOME / "startup/files/output/.env"
-output_json_path = DDOS_DETECTION_HOME / "startup/files/output/jinja_vars.json"
+output_json_path = DDOS_DETECTION_HOME / "startup/variables/jinja_vars.json"
 
 containers_csv_path = DDOS_DETECTION_HOME / "startup/files/input/containers.csv"
 hosts_csv_path = DDOS_DETECTION_HOME / "startup/files/input/hosts.csv"

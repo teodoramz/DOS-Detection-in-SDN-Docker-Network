@@ -6,5 +6,9 @@
 
 venv
 
-.output/*
-!.output/.keep
+output/*
+!output/.keep
+variables/*
+!variables/.keep
+__pycache__
+*.pyc
