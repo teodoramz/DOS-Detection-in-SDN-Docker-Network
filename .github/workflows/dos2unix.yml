@@ -1,0 +1,44 @@
+name: Normalize line endings (dos2unix)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allow manual running
+
+jobs:
+  dos2unix:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dos2unix
+        run: sudo apt-get update && sudo apt-get install -y dos2unix
+
+      - name: Convert all files to Unix line endings
+        run: |
+          echo "Running dos2unix recursively..."
+          find . -type f -not -path "./.git/*" -exec dos2unix {} \;
+
+      - name: Check for changes
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "Line endings normalized. Files changed:"
+            git status --short
+            echo "changes=true" >> $GITHUB_ENV
+          else
+            echo "No CRLF issues found."
+            echo "changes=false" >> $GITHUB_ENV
+          fi
+
+      - name: Commit normalized files
+        if: env.changes == 'true'
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          git add -A
+          git commit -m "Normalize line endings with dos2unix"
+          git push
