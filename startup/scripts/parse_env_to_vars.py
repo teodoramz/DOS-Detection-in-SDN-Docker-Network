@@ -12,7 +12,7 @@ output_json_path = DDOS_DETECTION_HOME / "startup/variables/jinja_vars.json"
 
 containers_csv_path = DDOS_DETECTION_HOME / "startup/files/input/containers.csv"
 hosts_csv_path = DDOS_DETECTION_HOME / "startup/files/input/hosts.csv"
-switches_csv_path = DDOS_DETECTION_HOME / "startup/files/input/switches_ryu.csv"
+switches_csv_path = DDOS_DETECTION_HOME / "startup/files/input/switches.csv"
 
 def safe_read_text(path: Path) -> str:
     try:
