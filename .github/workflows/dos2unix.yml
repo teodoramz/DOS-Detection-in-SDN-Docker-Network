@@ -2,8 +2,8 @@ name: Normalize line endings
 
 on:
   push:
-    branches-ignore:
-      - 'normalize-line-endings/**'
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
