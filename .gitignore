@@ -6,6 +6,8 @@
 
 venv
 
+./build/certs/ssl/openssl.cnf
+
 **/files/output/*
 !**/files/output/.keep
 **/variables/*
