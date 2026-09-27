@@ -30,12 +30,25 @@ generate_env() {
 }
 
 wait_for_container() {
-  local name=$1 tries=${2:-40}
+  local name=$1 tries=${2:-40} stable=0
   for _ in $(seq "$tries"); do
-    [ "$(docker inspect -f '{{.State.Running}}' "$name" 2>/dev/null)" = "true" ] && return 0
+    case "$(docker inspect -f '{{.State.Status}}' "$name" 2>/dev/null)" in
+      running)
+        # Require two consecutive checks, so a crash-looping container is not
+        # mistaken for a healthy one during the moment it is up.
+        stable=$((stable + 1))
+        [ "$stable" -ge 2 ] && return 0
+        ;;
+      restarting)
+        stable=0
+        ;;
+      exited|dead)
+        die "container $name exited: $(docker logs --tail 3 "$name" 2>&1 | tail -1)"
+        ;;
+    esac
     sleep 1
   done
-  die "container $name did not start"
+  die "container $name never stayed up: $(docker logs --tail 3 "$name" 2>&1 | tail -1)"
 }
 
 remove_stale_containers() {
