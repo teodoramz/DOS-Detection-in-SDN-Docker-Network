@@ -21,11 +21,16 @@ fi
 mkdir -p "$OUTPUT_DIR"
 OUTPUT_DIR=$(realpath "$OUTPUT_DIR")
 
-echo ""
-echo "Choose certificate generation method:"
-echo "1) Use predefined openssl.cnf (from ${DDOS_DETECTION_HOME}/startup/templates/openssl.cnf)"
-echo "2) Enter certificate details manually"
-read -rp "Enter your choice [1/2]: " choice
+# CERT_MODE makes this usable from the deploy scripts, which have no terminal.
+if [ -n "${CERT_MODE:-}" ]; then
+  choice="$CERT_MODE"
+else
+  echo ""
+  echo "Choose certificate generation method:"
+  echo "1) Use the predefined openssl.cnf"
+  echo "2) Enter certificate details manually"
+  read -rp "Enter your choice [1/2]: " choice
+fi
 
 if [ "$choice" = "1" ]; then
   PREDEF_CNF="$DDOS_DETECTION_HOME/startup/templates/openssl.cnf.j2"

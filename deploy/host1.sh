@@ -23,7 +23,7 @@ if [ "${1:-}" = "--clean" ]; then
 fi
 
 say "Generating certificates"
-./build/certs/generate-certs.sh "$DDOS_DETECTION_HOME/build/certs/ssl"
+CERT_MODE="${CERT_MODE:-1}" ./build/certs/generate-certs.sh "$DDOS_DETECTION_HOME/build/certs/ssl"
 install -D -m 644 build/certs/ssl/cyberstuff.crt build/proxy/certs/ssl/cyberstuff.crt
 install -D -m 600 build/certs/ssl/cyberstuff.key build/proxy/certs/ssl/cyberstuff.key
 
