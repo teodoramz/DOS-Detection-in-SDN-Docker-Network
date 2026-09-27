@@ -1,4 +1,3 @@
-version: "3.8"
 services:
   dns:
     build:
@@ -14,13 +13,25 @@ services:
 
   dns_collector:
     build:
-      context: ./build/dns-collector
+      context: ./build/collector
       args:
-        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
         WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
     container_name: ${DNS_COLLECTOR_CONTAINER_NAME}
     network_mode: none
     privileged: true
+    restart: unless-stopped
+    environment:
+      LAYER: "top"
+      CAPTURE_INTERFACE: ${CAPTURE_INTERFACE}
+      CAPTURE_DURATION: ${CAPTURE_DURATION}
+      WAIT_FOR_IP: ${DNS_COL_SW1_IP}
+      MINIO_ENDPOINT: ${MINIO_SW5_IP}:${MINIO_SERVER_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_TOP_LAYER_BUCKET}
+      KAFKA_BROKER: ${KAFKA_SW5_IP}:${KAFKA_WORKERS_PORT}
+      KAFKA_TOPIC: ${MINIO_TOP_LAYER_BUCKET}
 
   proxy:
     build:
@@ -28,21 +39,33 @@ services:
       args:
         NGINX_IMAGE_TAG: ${NGINX_IMAGE_TAG}
         NGINX_IMAGE: ${NGINX_IMAGE}
+    restart: ${NGINX_RESTART_POLICY}
+    hostname: ${NGINX_HOSTNAME}
     container_name: ${NGINX_CONTAINER_NAME}
     network_mode: none
     privileged: true
-    restart: ${NGINX_RESTART_POLICY}
-
 
   proxy_collector:
     build:
-      context: ./build/proxy-collector
+      context: ./build/collector
       args:
-        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
         WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
     container_name: ${PROXY_COLLECTOR_CONTAINER_NAME}
     network_mode: none
     privileged: true
+    restart: unless-stopped
+    environment:
+      LAYER: "inter"
+      CAPTURE_INTERFACE: ${CAPTURE_INTERFACE}
+      CAPTURE_DURATION: ${CAPTURE_DURATION}
+      WAIT_FOR_IP: ${PROXY_COL_SW2_IP}
+      MINIO_ENDPOINT: ${MINIO_SW5_IP}:${MINIO_SERVER_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_INTERMEDIATE_BUCKET}
+      KAFKA_BROKER: ${KAFKA_SW5_IP}:${KAFKA_WORKERS_PORT}
+      KAFKA_TOPIC: ${MINIO_INTERMEDIATE_BUCKET}
 
   webserver:
     build:
@@ -50,6 +73,8 @@ services:
       args:
         WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
         WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+    restart: ${WEBSERVER_RESTART_POLICY}
+    hostname: ${WEBSERVER_HOSTNAME}
     container_name: ${WEBSERVER_CONTAINER_NAME}
     network_mode: none
     privileged: true
@@ -60,13 +85,25 @@ services:
 
   web_collector:
     build:
-      context: ./build/service-collector
+      context: ./build/collector
       args:
-        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
         WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
     container_name: ${WEB_COLLECTOR_CONTAINER_NAME}
     network_mode: none
     privileged: true
+    restart: unless-stopped
+    environment:
+      LAYER: "bottom"
+      CAPTURE_INTERFACE: ${CAPTURE_INTERFACE}
+      CAPTURE_DURATION: ${CAPTURE_DURATION}
+      WAIT_FOR_IP: ${SERVICE_COL_SW3_IP}
+      MINIO_ENDPOINT: ${MINIO_SW5_IP}:${MINIO_SERVER_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BOTTOM_LAYER_BUCKET}
+      KAFKA_BROKER: ${KAFKA_SW5_IP}:${KAFKA_WORKERS_PORT}
+      KAFKA_TOPIC: ${MINIO_BOTTOM_LAYER_BUCKET}
 
   ryu:
     build:
@@ -79,9 +116,15 @@ services:
     hostname: ${SDN_HOSTNAME}
     container_name: ${SDN_CONTAINER_NAME}
     network_mode: host
-    ports:
-      - "${SDN_HOST}:${SDN_PORT}:${SDN_PORT}"
-      - "${SDN_REST_API_HOST}:${SDN_PORT_REST_API}:${SDN_PORT_REST_API}"
+    environment:
+      KAFKA_BROKER: ${KAFKA_SW5_IP}:${KAFKA_WORKERS_PORT}
+      KAFKA_ALERT_TOPIC: ${KAFKA_ALERT_TOPIC}
+      BLOCK_HARD_TIMEOUT: ${BLOCK_HARD_TIMEOUT}
+      BLOCK_PRIORITY: ${BLOCK_PRIORITY}
+      BLOCK_WHITELIST: ${BLOCK_WHITELIST}
+      LAYER_DATAPATH_MAP: ${LAYER_DATAPATH_MAP}
+      OFP_LISTEN_PORT: ${SDN_PORT}
+      REST_PORT: ${SDN_PORT_REST_API}
 
   sw1:
     build:

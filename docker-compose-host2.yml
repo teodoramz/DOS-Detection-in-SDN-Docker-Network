@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   kafka:
     build:
@@ -9,7 +8,7 @@ services:
     restart: ${KAFKA_RESTART_POLICY}
     hostname: ${KAFKA_HOSTNAME}
     container_name: ${KAFKA_CONTAINER_NAME}
-    network_mode: none 
+    network_mode: none
     privileged: true
     environment:
       KAFKA_KRAFT_MODE: ${KAFKA_KRAFT_MODE}
@@ -44,50 +43,100 @@ services:
     environment:
       KAFKA_BROKERCONNECT: ${KAFKA_BROKERCONNECT}
       SERVER_PORT: ${KAFDROP_PORT}
+
   minio:
-    context: ./build/minio
-    args:
-      MINIO_IMAGE: ${MINIO_IMAGE}
-      MINIO_IMAGE_TAG: ${MINIO_IMAGE_TAG}
+    build:
+      context: ./build/minio
+      args:
+        MINIO_IMAGE: ${MINIO_IMAGE}
+        MINIO_IMAGE_TAG: ${MINIO_IMAGE_TAG}
+        MINIO_SERVER_PORT: ${MINIO_SERVER_PORT}
+        MINIO_WEBUI_PORT: ${MINIO_WEBUI_PORT}
+    restart: unless-stopped
     hostname: ${MINIO_HOSTNAME}
     container_name: ${MINIO_CONTAINER_NAME}
     network_mode: none
     privileged: true
     environment:
-      MINIO_ROOT_USER:      ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD:  ${MINIO_ROOT_PASSWORD}
-      MINIO_SERVER_URL:     ${MINIO_SERVER_URL}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_SERVER_URL: ${MINIO_SERVER_URL}
     volumes:
       - ./volumes/minio/data:/data
 
   worker1:
     build:
-      context: ./build/ubuntu-net
+      context: ./build/worker
+      args:
+        WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
     container_name: worker1
     network_mode: none
     privileged: true
-    command: sleep infinity
+    restart: unless-stopped
+    environment:
+      WORKER_LAYER: "top"
+      KAFKA_BROKER: ${KAFKA_SW5_IP}:${KAFKA_WORKERS_PORT}
+      KAFKA_ALERT_TOPIC: ${KAFKA_ALERT_TOPIC}
+      MINIO_ENDPOINT: ${MINIO_SW5_IP}:${MINIO_SERVER_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      ALERT_THRESHOLD: ${ALERT_THRESHOLD}
+      ALERT_MIN_FLOWS: ${ALERT_MIN_FLOWS}
+      MAX_LAG_SECONDS: ${MAX_LAG_SECONDS}
+      JAVA_OPTS: ${WORKER_JAVA_OPTS}
 
   worker2:
     build:
-      context: ./build/ubuntu-net
+      context: ./build/worker
+      args:
+        WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
     container_name: worker2
     network_mode: none
     privileged: true
-    command: sleep infinity
+    restart: unless-stopped
+    environment:
+      WORKER_LAYER: "inter"
+      KAFKA_BROKER: ${KAFKA_SW5_IP}:${KAFKA_WORKERS_PORT}
+      KAFKA_ALERT_TOPIC: ${KAFKA_ALERT_TOPIC}
+      MINIO_ENDPOINT: ${MINIO_SW5_IP}:${MINIO_SERVER_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      ALERT_THRESHOLD: ${ALERT_THRESHOLD}
+      ALERT_MIN_FLOWS: ${ALERT_MIN_FLOWS}
+      MAX_LAG_SECONDS: ${MAX_LAG_SECONDS}
+      JAVA_OPTS: ${WORKER_JAVA_OPTS}
 
   worker3:
     build:
-      context: ./build/ubuntu-net
+      context: ./build/worker
+      args:
+        WEBSERVER_IMAGE: ${WEBSERVER_IMAGE}
+        WEBSERVER_IMAGE_TAG: ${WEBSERVER_IMAGE_TAG}
     container_name: worker3
     network_mode: none
     privileged: true
-    command: sleep infinity
+    restart: unless-stopped
+    environment:
+      WORKER_LAYER: "bottom"
+      KAFKA_BROKER: ${KAFKA_SW5_IP}:${KAFKA_WORKERS_PORT}
+      KAFKA_ALERT_TOPIC: ${KAFKA_ALERT_TOPIC}
+      MINIO_ENDPOINT: ${MINIO_SW5_IP}:${MINIO_SERVER_PORT}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      ALERT_THRESHOLD: ${ALERT_THRESHOLD}
+      ALERT_MIN_FLOWS: ${ALERT_MIN_FLOWS}
+      MAX_LAG_SECONDS: ${MAX_LAG_SECONDS}
+      JAVA_OPTS: ${WORKER_JAVA_OPTS}
 
   sw5:
     build:
       context: ./build/openvswitch
+      args:
+        OPENVSWITCH_IMAGE_TAG: ${OPENVSWITCH_IMAGE_TAG}
+        OPENVSWITCH_IMAGE: ${OPENVSWITCH_IMAGE}
     privileged: true
-    hostname: "sw5"
-    container_name: "sw5"
+    hostname: ${OPENVSWITCH_SW5_HOSTNAME}
+    container_name: ${OPENVSWITCH_SW5_CONTAINER_NAME}
     network_mode: none

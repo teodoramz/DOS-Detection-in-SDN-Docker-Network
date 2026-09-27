@@ -35,7 +35,11 @@ def main():
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
     Path(output_path).write_text(rendered)
 
+    repo_env = DDOS_DETECTION_HOME / ".env"
+    repo_env.write_text(rendered)
+
     print(f"\nEnv file generated: {output_path}")
+    print(f"Env file placed for compose: {repo_env}")
 
 
 if __name__ == "__main__":
