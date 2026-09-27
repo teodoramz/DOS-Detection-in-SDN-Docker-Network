@@ -14,3 +14,7 @@ venv
 !**/variables/.keep
 __pycache__
 *.pyc
+
+# thesis document, never published to the repo
+proiect_disertatie_acs_Amzuloiu_V_Teodor_188587.pdf
+*.pdf
