@@ -37,12 +37,15 @@ ip link add veth-s3-srv type veth peer name veth-sw5-s3
 ip link set veth-s3-srv netns $(docker inspect -f '{{.State.Pid}}' minio)
 ip link set veth-sw5-s3 netns $(docker inspect -f '{{.State.Pid}}' sw5)
 
-docker exec minio ip link set veth-s3-srv name eth0
-docker exec minio ip addr add 10.0.5.9/24 dev eth0
-docker exec minio ip addr add 10.255.255.101/24 dev eth0
-docker exec minio ip link set eth0 up
-docker exec minio ip link set eth0  mtu 1400 
-docker exec minio ip route add default via 10.0.5.1
+# The minio image is distroless: no shell, no ip. Configure its namespace from
+# the host instead of with docker exec.
+minio_pid=$(docker inspect -f '{{.State.Pid}}' minio)
+nsenter -t "$minio_pid" -n ip link set veth-s3-srv name eth0
+nsenter -t "$minio_pid" -n ip addr add 10.0.5.9/24 dev eth0
+nsenter -t "$minio_pid" -n ip addr add 10.255.255.101/24 dev eth0
+nsenter -t "$minio_pid" -n ip link set eth0 up
+nsenter -t "$minio_pid" -n ip link set eth0 mtu 1400
+nsenter -t "$minio_pid" -n ip route add default via 10.0.5.1
 
 docker exec sw5 ip link set veth-sw5-s3 name eth_s3
 docker exec sw5 ovs-vsctl add-port br-sw5 eth_s3
