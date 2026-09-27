@@ -1,20 +1,19 @@
-./volumes/kafka-kraft/*
 .env
-./volumes/*
-*.crt
-*.key
-
-venv
-
-./build/certs/ssl/openssl.cnf
-
-**/files/output/*
-!**/files/output/.keep
-**/variables/*
-!**/variables/.keep
-__pycache__
+venv/
+__pycache__/
 *.pyc
 
-# thesis document, never published to the repo
-proiect_disertatie_acs_Amzuloiu_V_Teodor_188587.pdf
+volumes/
+*.crt
+*.key
+build/certs/ssl/openssl.cnf
+
+startup/files/output/*
+!startup/files/output/.keep
+startup/variables/*
+!startup/variables/.keep
+
+.superpowers/
+
+*.pcap
 *.pdf

@@ -1,0 +1,35 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pytest pandas numpy joblib pyyaml
+      - run: python -m pytest -v
+
+  compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Render the environment file
+        run: |
+          pip install jinja2 pandas
+          DDOS_DETECTION_HOME=$PWD python startup/scripts/update_env.py
+          cp startup/files/output/.env .env
+      - name: Validate compose files
+        run: |
+          docker compose -f docker-compose-host1.yml config -q
+          docker compose -f docker-compose-host2.yml config -q
