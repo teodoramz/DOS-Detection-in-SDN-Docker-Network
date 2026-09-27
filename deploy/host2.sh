@@ -22,7 +22,7 @@ if [ "${1:-}" = "--clean" ]; then
 fi
 
 mkdir -p volumes/kafka-kraft/data volumes/minio/data
-chown -R 1000:1000 volumes/minio/data || true
+chown -R 65532:65532 volumes/minio/data || true
 
 say "Building and starting containers"
 docker compose -f docker-compose-host2.yml up -d --build

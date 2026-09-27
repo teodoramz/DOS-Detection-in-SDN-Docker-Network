@@ -75,3 +75,17 @@ def test_ryu_gets_the_blocker_environment():
     for key in ("KAFKA_BROKER", "KAFKA_ALERT_TOPIC", "BLOCK_HARD_TIMEOUT",
                 "BLOCK_PRIORITY", "BLOCK_WHITELIST", "LAYER_DATAPATH_MAP"):
         assert key in env, f"ryu is missing {key}"
+
+
+def test_minio_image_is_pullable_without_authentication():
+    """quay.io/minio and docker.io/minio/minio both require auth as of 2025."""
+    env = Path("startup/templates/env.j2").read_text()
+    assert "MINIO_IMAGE=quay.io/minio/minio" not in env
+    assert "MINIO_IMAGE=minio/minio" not in env
+
+
+def test_minio_runs_the_server_without_a_shell_wrapper():
+    """The Chainguard distribution is distroless, so no entrypoint script."""
+    dockerfile = Path("build/minio/Dockerfile").read_text()
+    assert "wait-for-eth0" not in dockerfile
+    assert "--console-address" in dockerfile
