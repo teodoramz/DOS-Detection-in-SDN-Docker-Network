@@ -11,12 +11,6 @@ from .model import MODEL_FILENAME, ModelDetector
 
 log = logging.getLogger(__name__)
 
-MODEL_NAMES = {
-    "top": "xgboost-top-v1",
-    "inter": "xgboost-inter-v1",
-    "bottom": "xgboost-bottom-v1",
-}
-
 __all__ = ["Detector", "HeuristicDetector", "ModelDetector", "build_detector"]
 
 
@@ -38,4 +32,4 @@ def build_detector(layer: str, model_dir, mode: str = "auto") -> Detector:
     if mode == "model" and not has_model:
         raise FileNotFoundError(f"no {MODEL_FILENAME} in {model_dir}")
 
-    return ModelDetector(model_dir, name=MODEL_NAMES.get(layer, f"{layer}-model"))
+    return ModelDetector(model_dir, layer=layer)
