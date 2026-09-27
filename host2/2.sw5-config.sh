@@ -14,3 +14,4 @@ docker exec sw5 ovs-vsctl add-port br-sw5 eth_br0
 docker exec sw5 ip addr add 10.255.255.5/24 dev br-sw5 #mgmt
 docker exec sw5 ip link set br-sw5 up
 docker exec sw5 ip link set br-sw5  mtu 1400 
+docker exec sw5 ovs-vsctl set bridge br-sw5 other-config:datapath-id=0000000000000005

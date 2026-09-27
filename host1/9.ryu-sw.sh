@@ -1,11 +1,18 @@
-docker exec sw1 ovs-vsctl set-controller br-sw1 tcp:10.255.255.254:6633 \
-  -- set Bridge br-sw1 protocols=OpenFlow13 fail-mode=secure
+#!/bin/bash
+# The datapath id is set explicitly so the controller can resolve a layer to a
+# switch; otherwise OVS derives one from a MAC address and LAYER_DATAPATH_MAP
+# would not hold.
 
-docker exec sw2 ovs-vsctl set-controller br-sw2 tcp:10.255.255.254:6633 \
-  -- set Bridge br-sw2 protocols=OpenFlow13 fail-mode=secure
+set -e
 
-docker exec sw3 ovs-vsctl set-controller br-sw3 tcp:10.255.255.254:6633 \
-  -- set Bridge br-sw3 protocols=OpenFlow13 fail-mode=secure
+CONTROLLER="tcp:10.255.255.254:6633"
 
-docker exec sw4 ovs-vsctl set-controller br-sw4 tcp:10.255.255.254:6633 \
-  -- set Bridge br-sw4 protocols=OpenFlow13 fail-mode=secure
+for n in 1 2 3 4; do
+  docker exec "sw${n}" ovs-vsctl \
+    set bridge "br-sw${n}" "other-config:datapath-id=000000000000000${n}"
+
+  docker exec "sw${n}" ovs-vsctl set-controller "br-sw${n}" "${CONTROLLER}" \
+    -- set Bridge "br-sw${n}" protocols=OpenFlow13 fail-mode=secure
+
+  echo "sw${n}: datapath 000000000000000${n} -> ${CONTROLLER}"
+done
