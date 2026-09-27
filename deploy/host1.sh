@@ -19,6 +19,7 @@ generate_env
 if [ "${1:-}" = "--clean" ]; then
   say "Tearing down"
   docker compose -f docker-compose-host1.yml down --remove-orphans || true
+  remove_stale_containers dns dns_collector proxy proxy_collector webserver web_collector ryu sw1 sw2 sw3 sw4
   ./utils/cleanup.sh || true
 fi
 

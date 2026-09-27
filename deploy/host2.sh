@@ -18,6 +18,7 @@ generate_env
 if [ "${1:-}" = "--clean" ]; then
   say "Tearing down"
   docker compose -f docker-compose-host2.yml down --remove-orphans || true
+  remove_stale_containers kafka kafdrop minio worker1 worker2 worker3 sw5
   ./utils/cleanup.sh || true
 fi
 

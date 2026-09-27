@@ -66,3 +66,27 @@ def test_start_wrapper_points_at_the_deploy_scripts():
     text = Path("utils/start.sh").read_text()
     assert "deploy/host1.sh" in text
     assert "deploy/host2.sh" in text
+
+
+@pytest.mark.parametrize("name", ["host1", "host2"])
+def test_clean_removes_containers_left_by_another_compose_project(name):
+    """compose down only removes its own project's containers, so names clash."""
+    text = Path(f"deploy/{name}.sh").read_text()
+    assert "remove_stale_containers" in text
+
+
+def test_the_helper_force_removes_by_name():
+    lib = Path("deploy/lib.sh").read_text()
+    assert "remove_stale_containers()" in lib
+    assert "docker rm -f" in lib
+
+
+@pytest.mark.parametrize("name,expected", [
+    ("host1", ["dns", "proxy", "webserver", "ryu", "sw1", "sw4"]),
+    ("host2", ["kafka", "kafdrop", "minio", "worker1", "worker3", "sw5"]),
+])
+def test_clean_names_every_container_the_host_owns(name, expected):
+    text = Path(f"deploy/{name}.sh").read_text()
+    line = next(l for l in text.splitlines() if "remove_stale_containers" in l and "()" not in l)
+    for container in expected:
+        assert container in line, f"{container} not in {name} cleanup"

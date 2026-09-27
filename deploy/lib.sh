@@ -37,3 +37,9 @@ wait_for_container() {
   done
   die "container $name did not start"
 }
+
+remove_stale_containers() {
+  for name in "$@"; do
+    docker rm -f "$name" >/dev/null 2>&1 || true
+  done
+}
