@@ -1,8 +1,4 @@
-"""Run CICFlowMeter-V3 over a pcap and read the flow records it writes.
-
-V3 is the version that produced the CIC-DDoS2019 features the models were
-trained on, so the column semantics match what the classifier expects.
-"""
+"""Run CICFlowMeter-V3 over a pcap and read the flow records it writes."""
 
 from __future__ import annotations
 

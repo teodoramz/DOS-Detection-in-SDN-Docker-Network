@@ -1,8 +1,6 @@
 """Turn per-flow probabilities into at most one alert per source IP.
 
-The thesis triggers on a single flow over the threshold. This aggregates
-instead, because section 5.3 records benign proxy and application flows
-scoring 0.7-0.9; ``min_flows=1`` restores the literal behaviour.
+Set ``min_flows=1`` to alert on any single flow over the threshold.
 """
 
 from __future__ import annotations

@@ -1,8 +1,7 @@
-"""Rule-based placeholder for the layers whose models do not exist yet.
+"""Rule-based placeholder for layers that have no trained model yet.
 
-These scores are NOT model output. They are a documented weighted combination
-of flow statistics, so the intermediate and bottom layers do something
-defensible until a trained classifier is dropped into their model directory.
+These scores are not model output, only a weighted combination of flow
+statistics.
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ class HeuristicDetector(Detector):
         return np.clip(scorer(df), 0.0, 1.0)
 
     def _score_inter(self, df: pd.DataFrame) -> np.ndarray:
-        """Volumetric L3/L4: half-open handshakes, packet rate, tiny packets."""
+        """Half-open handshakes, packet rate, tiny packets."""
         syn_ratio = _ratio(_column(df, "SYN Flag Count"), _column(df, "Total Fwd Packets"))
         rate = np.clip(_column(df, "Flow Packets/s") / 1000.0, 0.0, 1.0)
         size = _column(df, "Average Packet Size", default=1500.0)
@@ -51,7 +50,7 @@ class HeuristicDetector(Detector):
         return 0.45 * syn_ratio + 0.35 * rate + 0.20 * tiny
 
     def _score_bottom(self, df: pd.DataFrame) -> np.ndarray:
-        """L7: slow long-lived flows, and request bursts."""
+        """Slow long-lived flows, and request bursts."""
         duration_s = _column(df, "Flow Duration") / 1_000_000.0
         long_lived = np.clip(duration_s / 30.0, 0.0, 1.0)
         byte_rate = _column(df, "Flow Bytes/s", default=1e6)

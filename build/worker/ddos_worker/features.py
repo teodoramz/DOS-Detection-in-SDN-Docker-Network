@@ -1,9 +1,6 @@
-"""Turn a CICFlowMeter CSV into the matrix the trained model expects.
+"""Build the feature matrix a trained model expects.
 
-The feature order is read from ``top_features.npy`` at load time and never
-hardcoded. An earlier version of this pipeline hardcoded a different 25-name
-list, which silently scrambled every input; the tests pin the artifact order so
-that cannot recur.
+The feature order is read from the model's own artifact, never hardcoded.
 """
 
 from __future__ import annotations
@@ -14,8 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-#: CICFlowMeter output names to the CIC-DDoS2019 names the models were trained
-#: on. Taken from the original ``normalize.py``.
+#: CICFlowMeter output names to the names the models were trained on.
 COLUMN_MAPPING: dict[str, str] = {
     "Flow ID": "Flow ID",
     "Src IP": "Source IP",
@@ -109,9 +105,8 @@ COLUMN_MAPPING: dict[str, str] = {
     "Label": "Label",
 }
 
-#: Present in the CIC-DDoS2019 CSVs only because the header repeats
-#: "Fwd Header Length" and pandas de-duplicates it with a suffix. The trained
-#: model expects the column, so a measured CSV carrying one copy gets a second.
+#: The training CSVs repeat "Fwd Header Length"; pandas suffixes the second
+#: copy. Models expect both columns.
 DUPLICATE_HEADER_COLUMN = "Fwd Header Length.1"
 
 
@@ -135,9 +130,8 @@ class FeatureSpec:
 
     @classmethod
     def load(cls, model_dir: str | Path) -> "FeatureSpec":
-        # allow_pickle is needed because numpy stores a string array as objects.
-        # These artifacts are the project's own trained-model files, committed to
-        # this repository, not input from anywhere untrusted.
+        # allow_pickle: numpy stores the name array as objects. These are the
+        # project's own model artifacts, committed here, not untrusted input.
         model_dir = Path(model_dir)
         return cls(
             order=[str(c) for c in np.load(model_dir / "top_features.npy", allow_pickle=True)],
@@ -155,7 +149,7 @@ class FeatureSpec:
 
 
 def rename_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Rename only the columns present, so both V3 and V4 output are accepted."""
+    """Rename only the columns present, so V3 and V4 output are both accepted."""
     present = {old: new for old, new in COLUMN_MAPPING.items() if old in df.columns}
     return df.rename(columns=present)
 

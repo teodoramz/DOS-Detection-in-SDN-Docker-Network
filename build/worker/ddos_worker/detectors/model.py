@@ -22,8 +22,8 @@ class ModelDetector(Detector):
         self.name = name
         self.spec = FeatureSpec.load(self.model_dir)
         if estimator is None:
-            # joblib.load unpickles. The file is this project's own trained
-            # model, committed to this repository, not untrusted input.
+            # joblib.load unpickles: the project's own model file, not
+            # untrusted input.
             import joblib
 
             estimator = joblib.load(self.model_dir / MODEL_FILENAME)
