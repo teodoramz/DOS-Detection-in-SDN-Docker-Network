@@ -60,3 +60,21 @@ def test_collector_addresses_come_from_the_inventory(rendered):
     assert rendered["DNS_COL_SW1_IP"] == "10.0.1.6"
     assert rendered["PROXY_COL_SW2_IP"] == "10.0.2.6"
     assert rendered["SERVICE_COL_SW3_IP"] == "10.0.3.6"
+
+
+def test_no_value_with_a_space_is_left_unquoted(rendered):
+    """The topology scripts source .env, so an unquoted space runs as a command."""
+    bad = [k for k, v in rendered.items()
+           if " " in v and not (v.startswith(('"', "'")) and v.endswith(('"', "'")))]
+    assert not bad, f"these would break 'source .env': {bad}"
+
+
+def test_the_env_file_can_be_sourced_by_a_shell():
+    import subprocess
+
+    result = subprocess.run(
+        ["bash", "-c", "set -euo pipefail; set -a; source .env; set +a; echo OK"],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr[-400:]
+    assert "OK" in result.stdout
