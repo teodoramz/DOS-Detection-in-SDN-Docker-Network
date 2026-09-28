@@ -92,3 +92,19 @@ def test_empty_whitelist_entries_are_skipped():
 def test_malformed_whitelist_entry_is_rejected():
     with pytest.raises(ValueError, match="BLOCK_WHITELIST"):
         parse_whitelist("10.0.0.0/99")
+
+
+@pytest.mark.parametrize("ip,service", [
+    ("10.0.1.2", "the DNS resolver"),
+    ("10.0.2.2", "the reverse proxy"),
+    ("10.0.3.2", "the web server"),
+])
+def test_the_protected_services_are_never_blocked(ip, service):
+    """An amplification attack makes the victim a high-volume source, so the
+    naive rule would drop the service it is meant to protect."""
+    assert cfg().is_whitelisted(ip) is True, f"{service} would be blocked"
+
+
+def test_a_client_on_a_service_subnet_is_still_blockable():
+    for ip in ("10.0.1.50", "10.0.2.50", "10.0.3.50"):
+        assert cfg().is_whitelisted(ip) is False

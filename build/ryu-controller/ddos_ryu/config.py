@@ -7,10 +7,14 @@ from dataclasses import dataclass, field
 from typing import Mapping
 
 #: Addresses that must never be dropped: the management range, the layer
-#: gateways, the collectors, and the host2 services.
+#: gateways, the protected services themselves, the collectors, and the host2
+#: services. The services are listed because a reflection or amplification
+#: attack turns the victim into the largest source of flows, and blocking it
+#: would take down the very thing being defended.
 DEFAULT_WHITELIST = (
     "10.255.255.0/24,"
     "10.0.1.1,10.0.2.1,10.0.3.1,10.0.4.1,10.0.5.1,"
+    "10.0.1.2,10.0.2.2,10.0.3.2,"
     "10.0.1.6,10.0.2.6,10.0.3.6,"
     "10.0.4.2,10.0.4.3,10.0.4.4,"
     "10.0.5.2,10.0.5.6,10.0.5.9,"

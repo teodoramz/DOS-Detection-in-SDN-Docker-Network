@@ -5,6 +5,11 @@ source "$(dirname "$0")/lib.sh"
 
 TARGET="${TARGET:-10.0.1.2}"
 ZONE="${ZONE:-cyberstuff.local}"
+# The host's own address is whitelisted, so set SPOOF_SOURCE to an address that
+# is not, to see a block installed.
+SPOOF_SOURCE="${SPOOF_SOURCE:-}"
+spoof=""
+[ -n "${SPOOF_SOURCE}" ] && spoof="-a ${SPOOF_SOURCE}"
 
 need hping3
 need dig
@@ -38,6 +43,6 @@ else
   echo "  scapy absent, skipping the reflection stream"
 fi
 
-launch "hping3 udp flood" hping3 -2 --flood -p 53 "${TARGET}"
+launch "hping3 udp flood" hping3 ${spoof} -2 --flood -p 53 "${TARGET}"
 
 finish

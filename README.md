@@ -177,6 +177,14 @@ DURATION=300 ./attacks/bottom.sh    # slow headers and a request burst
 
 Each defaults to a ten-minute run and takes `TARGET` to point elsewhere.
 
+The host's own address and the protected services are whitelisted, so a flood
+launched from the host is detected but deliberately not blocked. To see a rule
+installed, give the flood a source that is not whitelisted:
+
+```bash
+SPOOF_SOURCE=10.0.1.50 DURATION=180 ./attacks/top.sh
+```
+
 After an attack, a blocked source appears in three places:
 
 ```bash

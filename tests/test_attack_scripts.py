@@ -62,3 +62,14 @@ def test_readme_documents_bring_up_and_attacks():
     assert "deploy/host1.sh" in readme
     assert "deploy/host2.sh" in readme
     assert "attacks/" in readme
+
+
+@pytest.mark.parametrize("layer", ["top", "inter", "bottom"])
+def test_attack_can_present_a_blockable_source(layer):
+    """The host's own address is whitelisted, so a demonstration of blocking
+    needs the flood to come from an address that is not."""
+    assert "SPOOF_SOURCE" in Path(f"attacks/{layer}.sh").read_text()
+
+
+def test_readme_explains_how_to_demonstrate_a_block():
+    assert "SPOOF_SOURCE" in Path("README.md").read_text()

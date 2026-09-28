@@ -5,6 +5,9 @@ source "$(dirname "$0")/lib.sh"
 
 TARGET="${TARGET:-10.0.3.2}"
 PORT="${PORT:-5000}"
+# slowhttptest and ab cannot spoof; SPOOF_SOURCE adds an hping3 stream so a
+# block can be demonstrated from an address that is not whitelisted.
+SPOOF_SOURCE="${SPOOF_SOURCE:-}"
 
 need slowhttptest
 need ab
@@ -16,5 +19,10 @@ launch "slowhttptest slow headers" \
 
 launch "ab request burst" bash -c "
   while true; do ab -n 50000 -c 200 'http://${TARGET}:${PORT}/'; done"
+
+if [ -n "${SPOOF_SOURCE}" ]; then
+  need hping3
+  launch "hping3 spoofed flood" hping3 -a "${SPOOF_SOURCE}" -S --flood -p "${PORT}" "${TARGET}"
+fi
 
 finish
