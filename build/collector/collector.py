@@ -100,6 +100,24 @@ def build_message(*, filename, bucket, layer, captured_at, duration, interface,
     }
 
 
+def publish_window(cfg: "CollectorConfig", *, pcap: Path, filename: str,
+                   started_iso: str, publish) -> bool:
+    """Upload and announce one window. False when it failed.
+
+    A failure here is logged and swallowed: exiting would restart the container,
+    which recreates its network namespace and destroys the interface the
+    topology scripts attached.
+    """
+    try:
+        publish(cfg, pcap=pcap, filename=filename, started_iso=started_iso)
+        return True
+    except Exception as exc:
+        log.error("window %s not published (%s); continuing", filename, exc)
+        return False
+    finally:
+        Path(pcap).unlink(missing_ok=True)
+
+
 def capture(cfg: CollectorConfig, filepath: Path) -> None:
     proc = subprocess.Popen(
         ["tcpdump", "-i", cfg.interface, "-s", "0", "-w", str(filepath)],
@@ -160,17 +178,24 @@ def main() -> int:
             filepath.unlink(missing_ok=True)
             continue
 
-        store.fput_object(cfg.minio_bucket, filename, str(filepath))
-        url = store.presigned_get_object(cfg.minio_bucket, filename, expires=timedelta(days=7))
+        def publish(cfg, *, pcap, filename, started_iso):
+            store.fput_object(cfg.minio_bucket, filename, str(pcap))
+            url = store.presigned_get_object(
+                cfg.minio_bucket, filename, expires=timedelta(days=7)
+            )
+            producer.send(cfg.kafka_topic, build_message(
+                filename=filename, bucket=cfg.minio_bucket, layer=cfg.layer,
+                captured_at=started_iso, duration=cfg.duration,
+                interface=cfg.interface, download_url=url,
+            ))
+            producer.flush()
+            log.info("published %s to %s", filename, cfg.kafka_topic)
 
-        producer.send(cfg.kafka_topic, build_message(
-            filename=filename, bucket=cfg.minio_bucket, layer=cfg.layer,
-            captured_at=started.isoformat().replace("+00:00", "Z"),
-            duration=cfg.duration, interface=cfg.interface, download_url=url,
-        ))
-        producer.flush()
-        log.info("published %s to %s", filename, cfg.kafka_topic)
-        filepath.unlink(missing_ok=True)
+        publish_window(
+            cfg, pcap=filepath, filename=filename,
+            started_iso=started.isoformat().replace("+00:00", "Z"),
+            publish=publish,
+        )
 
 
 if __name__ == "__main__":

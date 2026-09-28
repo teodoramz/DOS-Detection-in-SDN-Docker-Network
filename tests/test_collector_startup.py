@@ -63,3 +63,46 @@ def test_entrypoint_waits_rather_than_exiting(script):
     text = Path(script).read_text()
     assert "while" in text
     assert "WAIT_FOR_IP" in text
+
+
+def test_the_capture_loop_survives_a_failed_window(monkeypatch, tmp_path):
+    """A broker or store hiccup mid-run must not end the process."""
+    import collector as mod
+
+    cfg = mod.CollectorConfig.from_env({"LAYER": "top", "TMP_DIR": str(tmp_path)})
+    calls = {"n": 0}
+
+    def flaky_publish(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise OSError("broker went away")
+
+    handled = mod.publish_window(
+        cfg,
+        pcap=tmp_path / "c.pcap",
+        filename="c.pcap",
+        started_iso="2026-09-28T13:00:00Z",
+        publish=flaky_publish,
+    )
+    assert handled is False
+
+    (tmp_path / "c.pcap").write_bytes(b"x")
+    assert mod.publish_window(
+        cfg, pcap=tmp_path / "c.pcap", filename="c.pcap",
+        started_iso="2026-09-28T13:00:00Z", publish=flaky_publish,
+    ) is True
+
+
+def test_a_failed_window_still_removes_its_capture_file(tmp_path):
+    import collector as mod
+
+    cfg = mod.CollectorConfig.from_env({"LAYER": "top", "TMP_DIR": str(tmp_path)})
+    pcap = tmp_path / "c.pcap"
+    pcap.write_bytes(b"x")
+
+    def boom(*args, **kwargs):
+        raise OSError("nope")
+
+    mod.publish_window(cfg, pcap=pcap, filename="c.pcap",
+                       started_iso="2026-09-28T13:00:00Z", publish=boom)
+    assert not pcap.exists(), "a failed window must not leak its pcap"
