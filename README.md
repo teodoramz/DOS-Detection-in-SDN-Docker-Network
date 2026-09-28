@@ -49,29 +49,37 @@ The controller also carries the learning-switch logic. The bridges run
 
 ## Detection models
 
-| Layer | Switch | Model directory | Status |
-|-------|--------|-----------------|--------|
+One detector per layer, each chosen independently. The layer decides *where* a
+block is enforced; it says nothing about *which* algorithm scores it.
+
+| Layer | Switch | Model directory | Currently |
+|-------|--------|-----------------|-----------|
 | top | br-sw1 | `build/worker/models/top` | XGBoost classifier |
 | inter | br-sw2 | `build/worker/models/inter` | **rule-based placeholder** |
 | bottom | br-sw3 | `build/worker/models/bottom` | **rule-based placeholder** |
 
-Only the top layer has a trained model. The intermediate and bottom layers run
-`HeuristicDetector`, a weighted combination of flow statistics — SYN ratio,
-packet rate and packet size for the intermediate layer; flow duration, byte
-starvation and request bursts for the bottom layer. **These are placeholders,
-not trained models, and their scores must not be read as model output.** Every
-worker logs which one it is using at startup.
+XGBoost is simply what the top layer ships with today, not a requirement. Any
+fitted estimator that exposes `predict_proba`, `decision_function` or `predict`
+works — random forests, decision trees, logistic regression, k-NN, SVMs,
+multi-layer perceptrons, gradient boosting, or a Keras/PyTorch model wrapped to
+offer one of those methods. Different layers can use different algorithms, and
+switching one is a file swap, not a code change. Each worker logs the algorithm
+it loaded at startup, and the class name reaches the alert as, for example,
+`top-randomforestclassifier`.
 
-### Adding a model
+The intermediate and bottom layers currently run `HeuristicDetector`, a weighted
+combination of flow statistics — SYN ratio, packet rate and packet size for the
+intermediate layer; flow duration, byte starvation and request bursts for the
+bottom layer. **These are placeholders, not trained models, and their scores
+must not be read as model output.** Every worker says which it is using at
+startup.
 
-Drop the artifacts into the layer's model directory and restart the worker. No
-code changes.
+### Adding or replacing a model
 
-The detector supports any fitted estimator — random forests, boosting, linear
-models, SVMs, neural networks — in either of two shapes:
+Put the artifacts in the layer's model directory and restart that worker.
 
 **A bare estimator** plus its preprocessing vectors, where the worker imputes,
-orders and scales:
+orders and scales on the model's behalf:
 
 ```
 build/worker/models/<layer>/
@@ -82,28 +90,54 @@ build/worker/models/<layer>/
   scaler_std25.npy     per-feature standard deviation
 ```
 
-**A self-contained pipeline** that preprocesses internally — just
-`models.joblib`. It receives the flow records as a DataFrame, reindexed to the
-columns its `feature_names_in_` declares.
+The vectors do not have to describe 25 features; the worker takes the count from
+`top_features.npy` and refuses to start if the four files disagree. The order in
+that file is authoritative — nothing in the code carries a feature list.
 
-Probabilities are taken from `predict_proba`, falling back to
-`decision_function` and then `predict`.
+**A self-contained pipeline** that preprocesses internally — just
+`models.joblib`. Anything with a `fit`/`predict` interface qualifies, including
+an sklearn or imbalanced-learn `Pipeline` carrying its own imputer, scaler,
+feature selection and sampler. It receives the flow records as a DataFrame,
+reindexed to the columns its `feature_names_in_` declares, with absent ones left
+for its own imputer.
+
+The worker picks the mode automatically from which files it finds, and
+`DETECTOR=model` forces it to refuse the heuristic fallback if the artifacts are
+missing.
 
 ## Requirements
 
 Two Ubuntu hosts with Docker, Docker Compose v2, Open vSwitch and Python 3 —
-`utils/dependencies.sh` installs them. Addresses live in
-`startup/files/input/*.csv`; everything else is generated from them.
+`utils/dependencies.sh` installs them.
+
+## Addressing
+
+Every address in the testbed is declared once, in
+`startup/files/input/*.csv`, and nothing else hardcodes one.
+
+| File | Holds |
+|------|-------|
+| `hosts.csv` | the two hosts' own addresses and management addresses |
+| `switches.csv` | each switch's subnet, gateway and management address |
+| `containers.csv` | every container's address on each switch |
+
+`startup/scripts/update_env.py` renders those into `.env`, which the compose
+files, the topology scripts and the containers all read. To move the testbed to
+different machines, edit `hosts.csv` and redeploy — the GRE tunnel endpoints,
+the bridge addresses and the container environments all follow.
+
+`startup/scripts/generate_markdown.py` regenerates `ipmap.md` from the same
+CSVs, so the documented inventory cannot drift from the deployed one.
 
 ## Bring-up
 
 Host2 first, so Kafka and the workers exist before host1 starts publishing.
 
 ```bash
-# on host2 (192.168.241.143)
+# on host2
 sudo DDOS_DETECTION_HOME=$PWD ./deploy/host2.sh
 
-# on host1 (192.168.241.142)
+# on host1
 sudo DDOS_DETECTION_HOME=$PWD ./deploy/host1.sh
 ```
 

@@ -8,6 +8,7 @@ import os
 DDOS_DETECTION_HOME = Path(os.getenv("DDOS_DETECTION_HOME", Path(__file__).resolve().parent))
 
 containers_csv_path = DDOS_DETECTION_HOME / "startup/files/input/containers.csv"
+hosts_csv_path = DDOS_DETECTION_HOME / "startup/files/input/hosts.csv"
 template_path = DDOS_DETECTION_HOME / "startup/templates/env.j2"
 output_path = DDOS_DETECTION_HOME / "startup/files/output/.env"
 
@@ -25,8 +26,23 @@ def get_ip_map(csv_path):
     return ip_map
 
 
+def get_host_map(csv_path):
+    df = pd.read_csv(csv_path)
+    host_map = {}
+    for _, row in df.iterrows():
+        name = re.sub(r"[^a-z0-9]+", "_", str(row["Name"]).strip().lower())
+        ip = str(row["Ip address default interface"]).strip()
+        mgmt = str(row["Mgmt IP"]).strip()
+        if ip and ip != "-":
+            host_map[f"{name}_ip"] = ip.split("/")[0]
+        if mgmt and mgmt != "-":
+            host_map[f"{name}_mgmt_ip"] = mgmt.split("/")[0]
+    return host_map
+
+
 def main():
     ip_map = get_ip_map(containers_csv_path)
+    ip_map.update(get_host_map(hosts_csv_path))
 
     for k, v in ip_map.items():
         print(f"  {k} = {v}")
