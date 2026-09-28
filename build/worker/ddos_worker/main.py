@@ -90,7 +90,8 @@ def process_capture(pcap: Path, cfg: WorkerConfig, detector, window_start: str, 
     """pcap to alerts. Returns an empty list when nothing is worth reporting."""
     started = time.monotonic()
     csv_path = pcap_to_csv(
-        pcap, pcap.parent / "csv", cfm_home=cfg.cfm_home, timeout=cfg.flowmeter_timeout
+        pcap, pcap.parent / "csv", cfm_home=cfg.cfm_home,
+        timeout=cfg.flowmeter_timeout, java_opts=cfg.java_opts,
     )
     measured = time.monotonic()
 

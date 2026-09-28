@@ -52,7 +52,29 @@ def test_invokes_the_converter_with_the_pcap_and_output_dir(out, pcap):
     runner = FakeRunner(out)
     pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), runner=runner)
     assert str(pcap) in runner.cmd
-    assert str(out) in runner.cmd
+    # V3 requires a trailing separator on the output directory.
+    assert f"{out}/" in runner.cmd
+
+
+def test_runs_the_v3_jar_with_its_native_library_path(out, pcap):
+    """CICFlowMeter-V3 is the version the models were trained against."""
+    runner = FakeRunner(out)
+    pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), runner=runner)
+    assert runner.cmd[0] == "java"
+    assert "-Djava.library.path=/opt/cfm" in runner.cmd
+    assert "/opt/cfm/CICFlowMeterV3.jar" in runner.cmd
+    assert "-jar" in runner.cmd
+
+
+def test_java_heap_is_configurable(out, pcap):
+    runner = FakeRunner(out)
+    pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), java_opts="-Xmx512m", runner=runner)
+    assert "-Xmx512m" in runner.cmd
+
+
+def test_the_pcap_is_not_deleted_by_the_converter(out, pcap):
+    pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), runner=FakeRunner(out))
+    assert pcap.is_file()
 
 
 def test_passes_the_timeout_through(out, pcap):

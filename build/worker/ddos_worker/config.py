@@ -55,6 +55,7 @@ class WorkerConfig:
     max_lag_seconds: int
     cfm_home: Path
     flowmeter_timeout: int
+    java_opts: str
     work_dir: Path
 
     @classmethod
@@ -80,5 +81,6 @@ class WorkerConfig:
             max_lag_seconds=_int(env, "MAX_LAG_SECONDS", 120, 0),
             cfm_home=Path(env.get("CFM_HOME", "/opt/cicflowmeter")),
             flowmeter_timeout=_int(env, "FLOWMETER_TIMEOUT", 300, 1),
+            java_opts=env.get("JAVA_OPTS", ""),
             work_dir=Path(env.get("WORK_DIR", "/tmp/ddos-worker")),
         )

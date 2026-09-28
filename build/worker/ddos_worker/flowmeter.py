@@ -12,7 +12,7 @@ from .features import ensure_duplicate_header_column, rename_columns
 
 log = logging.getLogger(__name__)
 
-CONVERT_SCRIPT = "convert_pcap_csv.sh"
+CICFLOWMETER_JAR = "CICFlowMeterV3.jar"
 
 
 class FlowMeterError(RuntimeError):
@@ -25,15 +25,23 @@ def pcap_to_csv(
     *,
     cfm_home: Path,
     timeout: int = 300,
+    java_opts: str = "",
     runner=subprocess.run,
 ) -> Path:
+    """Convert one pcap and return the CSV of flow records.
+
+    The jar is invoked directly rather than through the upstream shell wrapper,
+    which deletes the pcap and whose V3 code path is commented out.
+    """
     pcap, out_dir, cfm_home = Path(pcap), Path(out_dir), Path(cfm_home)
     if not pcap.is_file():
         raise FlowMeterError(f"pcap not found: {pcap}")
     out_dir.mkdir(parents=True, exist_ok=True)
 
     before = {p: p.stat().st_mtime for p in out_dir.glob("*.csv")}
-    cmd = [str(cfm_home / CONVERT_SCRIPT), "-d", str(out_dir), str(pcap)]
+    cmd = ["java", f"-Djava.library.path={cfm_home}"]
+    cmd += [opt for opt in java_opts.split() if opt]
+    cmd += ["-jar", str(cfm_home / CICFLOWMETER_JAR), str(pcap), f"{out_dir}/"]
 
     try:
         result = runner(cmd, cwd=str(cfm_home), capture_output=True, timeout=timeout)
