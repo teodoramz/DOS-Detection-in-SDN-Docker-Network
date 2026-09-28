@@ -50,11 +50,24 @@ class HeuristicDetector(Detector):
         return 0.45 * syn_ratio + 0.35 * rate + 0.20 * tiny
 
     def _score_bottom(self, df: pd.DataFrame) -> np.ndarray:
-        """Slow long-lived flows, and request bursts."""
+        """Slow long-lived flows, request bursts, and half-open connections.
+
+        The slow-connection signature is this layer's characteristic attack, so
+        it carries the most weight, but an application port also receives plain
+        L4 floods and a burst alone scored under the default threshold.
+        """
         duration_s = _column(df, "Flow Duration") / 1_000_000.0
         long_lived = np.clip(duration_s / 30.0, 0.0, 1.0)
         byte_rate = _column(df, "Flow Bytes/s", default=1e6)
         starved = np.clip((100.0 - byte_rate) / 100.0, 0.0, 1.0)
         burst = np.clip(_column(df, "Flow Packets/s") / 200.0, 0.0, 1.0)
         pushes = np.clip(_column(df, "Fwd PSH Flags"), 0.0, 1.0)
-        return 0.50 * (long_lived * starved) + 0.35 * burst + 0.15 * pushes
+        half_open = _ratio(_column(df, "SYN Flag Count"), _column(df, "Total Fwd Packets"))
+        # The weights deliberately sum above 1: either signature alone should
+        # clear the threshold, and score() clips the result.
+        return (
+            0.55 * (long_lived * starved)
+            + 0.30 * burst
+            + 0.25 * half_open
+            + 0.05 * pushes
+        )

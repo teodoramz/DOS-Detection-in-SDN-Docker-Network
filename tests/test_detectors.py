@@ -117,3 +117,33 @@ def test_build_detector_forced_to_model_without_artifacts_raises(tmp_path):
 def test_detector_interface_is_abstract():
     with pytest.raises(TypeError):
         Detector()
+
+
+def test_bottom_heuristic_catches_a_volumetric_flood_at_the_application_port():
+    """An application tier also receives L4 floods; a burst alone scored below
+    the default threshold and the attacker went unblocked in a live run."""
+    df = pd.DataFrame({
+        "Flow Duration": [80_000.0, 400.0],
+        "Flow Bytes/s": [30000.0, 0.0],
+        "Flow Packets/s": [8.0, 50000.0],
+        "Fwd PSH Flags": [1, 0],
+        "SYN Flag Count": [1, 1],
+        "Total Fwd Packets": [12, 1],
+    })
+    probs = HeuristicDetector("bottom").score(df)
+    assert probs[1] >= 0.5, "a SYN flood at the application port must be flagged"
+    assert probs[0] < 0.5, "ordinary browsing must not be"
+
+
+def test_bottom_heuristic_still_catches_slow_connections():
+    df = pd.DataFrame({
+        "Flow Duration": [120_000_000.0, 50_000.0],
+        "Flow Bytes/s": [2.0, 20000.0],
+        "Flow Packets/s": [0.2, 5.0],
+        "Fwd PSH Flags": [1, 0],
+        "SYN Flag Count": [0, 0],
+        "Total Fwd Packets": [50, 10],
+    })
+    probs = HeuristicDetector("bottom").score(df)
+    assert probs[0] > probs[1]
+    assert probs[0] >= 0.5
