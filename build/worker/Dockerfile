@@ -24,7 +24,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY ddos_worker /app/ddos_worker
 COPY models /app/models
+COPY entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
 ENV PYTHONUNBUFFERED=1 JAVA_OPTS="-Xms256m -Xmx1g"
 
-ENTRYPOINT ["python", "-m", "ddos_worker.main"]
+ENTRYPOINT ["entrypoint.sh"]

@@ -22,6 +22,26 @@ from .flowmeter import FlowMeterError, pcap_to_csv, read_flows
 log = logging.getLogger("ddos_worker")
 
 
+def connect_with_retry(factory, *, what: str, attempts: int = 0, delay: int = 5,
+                       sleeper=time.sleep):
+    """Call ``factory`` until it succeeds.
+
+    The worker starts before the topology scripts attach its interface, so the
+    broker and the object store are unreachable for the first few seconds.
+    ``attempts=0`` retries forever.
+    """
+    tries = 0
+    while True:
+        try:
+            return factory()
+        except Exception as exc:
+            tries += 1
+            if attempts and tries >= attempts:
+                raise
+            log.warning("%s not reachable yet (%s), retrying in %ss", what, exc, delay)
+            sleeper(delay)
+
+
 class MessageError(ValueError):
     """The Kafka message cannot be acted on."""
 
@@ -119,16 +139,22 @@ def main() -> int:
         secret_key=cfg.minio_secret_key,
         secure=False,
     )
-    producer = KafkaProducer(
-        bootstrap_servers=[cfg.kafka_broker],
-        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+    producer = connect_with_retry(
+        lambda: KafkaProducer(
+            bootstrap_servers=[cfg.kafka_broker],
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        ),
+        what=f"kafka producer at {cfg.kafka_broker}",
     )
-    consumer = KafkaConsumer(
-        cfg.capture_topic,
-        bootstrap_servers=[cfg.kafka_broker],
-        group_id=f"ddos-worker-{cfg.layer}",
-        auto_offset_reset="latest",
-        enable_auto_commit=True,
+    consumer = connect_with_retry(
+        lambda: KafkaConsumer(
+            cfg.capture_topic,
+            bootstrap_servers=[cfg.kafka_broker],
+            group_id=f"ddos-worker-{cfg.layer}",
+            auto_offset_reset="latest",
+            enable_auto_commit=True,
+        ),
+        what=f"kafka consumer on {cfg.capture_topic}",
     )
     log.info("consuming %s from %s", cfg.capture_topic, cfg.kafka_broker)
 

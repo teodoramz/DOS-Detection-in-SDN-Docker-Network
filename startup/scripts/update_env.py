@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 from jinja2 import Environment, FileSystemLoader
 from pathlib import Path
@@ -13,7 +15,9 @@ def get_ip_map(csv_path):
     df = pd.read_csv(csv_path)
     ip_map = {}
     for _, row in df.iterrows():
-        name = row["Name"].strip().lower()
+        # Jinja identifiers cannot contain hyphens, so "ML-Worker1" becomes
+        # ml_worker1.
+        name = re.sub(r"[^a-z0-9]+", "_", row["Name"].strip().lower())
         for sw in ["Sw1", "Sw2", "Sw3", "Sw4", "Sw5"]:
             val = str(row.get(sw, "")).strip()
             if val and val != "-":
