@@ -38,7 +38,7 @@ control.
 2. The pcap is uploaded to MinIO; a Kafka message carries only a reference to
    it, since Kafka messages are capped at 1 MB.
 3. The layer's worker consumes that reference, fetches the object, converts it
-   to flow records with CICFlowMeter-V3, and scores every flow.
+   to flow records with CICFlowMeter, and scores every flow.
 4. Sources with at least `ALERT_MIN_FLOWS` flows scoring at or above
    `ALERT_THRESHOLD` are published to the `ddos-alerts` topic.
 5. The Ryu controller consumes the alert and installs a drop rule matching that
@@ -216,6 +216,22 @@ All of it reaches the containers through the generated `.env`.
 The whitelist matters: an alert naming a gateway or a collector would partition
 the testbed, so those addresses are refused and logged.
 
+## Flow features
+
+Captures become flow records with CICFlowMeter-4.0, vendored under
+`build/worker/cicflowmeter` (an 11MB subset of the distribution: the GUI and
+machine-learning jars are not needed by the command-line entry point). The
+upstream project keeps it in a git submodule that its source archive does not
+carry, so it is committed here to keep the image reproducible and buildable
+offline.
+
+The converter's column names differ from the CIC-DDoS2019 names the models were
+trained on — `Total Bwd packets` against `Total Backward Packets`, and so on —
+so `features.py` renames them. `tests/test_feature_coverage.py` holds a fixture
+of real converter output and asserts every feature the model expects resolves
+from it; without that check a name change would be absorbed silently as an
+imputed median and the probabilities would mean nothing.
+
 ## Tests
 
 ```bash
@@ -232,7 +248,7 @@ whitelist, the block table and flow construction, and the compose manifests.
 attacks/       the three attack scenarios and a live monitor
 build/         one directory per image
   collector/   packet capture, one image parameterised by layer
-  worker/      the detection pipeline and the models
+  worker/      the detection pipeline, the models and the flow converter
   ryu-controller/  the learning switch and DDoS blocker
 deploy/        per-host bring-up
 host1/ host2/  numbered topology scripts
