@@ -12,7 +12,7 @@ from .features import ensure_duplicate_header_column, rename_columns
 
 log = logging.getLogger(__name__)
 
-CICFLOWMETER_JAR = "CICFlowMeterV3.jar"
+CICFLOWMETER_MAIN = "cic.cs.unb.ca.ifm.Cmd"
 
 
 class FlowMeterError(RuntimeError):
@@ -30,8 +30,9 @@ def pcap_to_csv(
 ) -> Path:
     """Convert one pcap and return the CSV of flow records.
 
-    The jar is invoked directly rather than through the upstream shell wrapper,
-    which deletes the pcap and whose V3 code path is commented out.
+    The command-line class is invoked directly: the jar's own Main-Class is a
+    Swing application that cannot start in a headless container, and the
+    upstream shell wrapper deletes the pcap it converts.
     """
     pcap, out_dir, cfm_home = Path(pcap), Path(out_dir), Path(cfm_home)
     if not pcap.is_file():
@@ -39,9 +40,9 @@ def pcap_to_csv(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     before = {p: p.stat().st_mtime for p in out_dir.glob("*.csv")}
-    cmd = ["java", f"-Djava.library.path={cfm_home}"]
+    cmd = ["java", f"-Djava.library.path={cfm_home / 'lib' / 'native'}"]
     cmd += [opt for opt in java_opts.split() if opt]
-    cmd += ["-jar", str(cfm_home / CICFLOWMETER_JAR), str(pcap), f"{out_dir}/"]
+    cmd += ["-cp", f"{cfm_home / 'lib'}/*", CICFLOWMETER_MAIN, str(pcap), f"{out_dir}/"]
 
     try:
         result = runner(cmd, cwd=str(cfm_home), capture_output=True, timeout=timeout)

@@ -11,7 +11,7 @@ from ddos_worker.flowmeter import FlowMeterError, pcap_to_csv, read_flows
 class FakeRunner:
     """Records the command and optionally drops a CSV where the tool would."""
 
-    def __init__(self, out_dir=None, produce="capture_ISCX.csv", returncode=0, raises=None):
+    def __init__(self, out_dir=None, produce="capture.pcap_Flow.csv", returncode=0, raises=None):
         self.out_dir = out_dir
         self.produce = produce
         self.returncode = returncode
@@ -45,7 +45,7 @@ def out(tmp_path):
 
 def test_returns_the_produced_csv(out, pcap):
     result = pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), runner=FakeRunner(out))
-    assert result.name == "capture_ISCX.csv"
+    assert result.name == "capture.pcap_Flow.csv"
 
 
 def test_invokes_the_converter_with_the_pcap_and_output_dir(out, pcap):
@@ -56,14 +56,21 @@ def test_invokes_the_converter_with_the_pcap_and_output_dir(out, pcap):
     assert f"{out}/" in runner.cmd
 
 
-def test_runs_the_v3_jar_with_its_native_library_path(out, pcap):
-    """CICFlowMeter-V3 is the version the models were trained against."""
+def test_runs_the_command_line_class_not_the_gui(out, pcap):
+    """The jar's Main-Class is a Swing app that cannot start headless."""
     runner = FakeRunner(out)
     pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), runner=runner)
     assert runner.cmd[0] == "java"
-    assert "-Djava.library.path=/opt/cfm" in runner.cmd
-    assert "/opt/cfm/CICFlowMeterV3.jar" in runner.cmd
-    assert "-jar" in runner.cmd
+    assert "cic.cs.unb.ca.ifm.Cmd" in runner.cmd
+    assert "-jar" not in runner.cmd
+
+
+def test_passes_the_native_library_and_classpath(out, pcap):
+    runner = FakeRunner(out)
+    pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), runner=runner)
+    assert "-Djava.library.path=/opt/cfm/lib/native" in runner.cmd
+    assert "/opt/cfm/lib/*" in runner.cmd
+    assert "-cp" in runner.cmd
 
 
 def test_java_heap_is_configurable(out, pcap):
@@ -107,12 +114,12 @@ def test_missing_pcap_raises(tmp_path, out):
 
 
 def test_newest_csv_wins_when_several_exist(out, pcap):
-    stale = out / "old_ISCX.csv"
+    stale = out / "old_Flow.csv"
     stale.write_text("Src IP\n")
     os.utime(stale, (1, 1))
     time.sleep(0.01)
     result = pcap_to_csv(pcap, out, cfm_home=Path("/opt/cfm"), runner=FakeRunner(out))
-    assert result.name == "capture_ISCX.csv"
+    assert result.name == "capture.pcap_Flow.csv"
 
 
 def test_read_flows_renames_and_reconstructs(tmp_path):
