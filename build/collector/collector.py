@@ -12,6 +12,7 @@ import logging
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -21,6 +22,25 @@ LAYERS = ("top", "inter", "bottom")
 LAYER_TOPICS = {"top": "top-layer", "inter": "inter-layer", "bottom": "bot-layer"}
 
 log = logging.getLogger("collector")
+
+
+def connect_with_retry(factory, *, what: str, attempts: int = 0, delay: int = 5,
+                       sleeper=time.sleep):
+    """Call ``factory`` until it succeeds.
+
+    A collector starts before the topology scripts attach its interface and
+    before the host2 services are reachable. ``attempts=0`` retries forever.
+    """
+    tries = 0
+    while True:
+        try:
+            return factory()
+        except Exception as exc:
+            tries += 1
+            if attempts and tries >= attempts:
+                raise
+            log.warning("%s not reachable yet (%s), retrying in %ss", what, exc, delay)
+            sleeper(delay)
 
 
 @dataclass(frozen=True)
@@ -110,13 +130,21 @@ def main() -> int:
 
     store = Minio(cfg.minio_endpoint, access_key=cfg.minio_access_key,
                   secret_key=cfg.minio_secret_key, secure=cfg.minio_secure)
-    if not store.bucket_exists(cfg.minio_bucket):
-        store.make_bucket(cfg.minio_bucket)
-        log.info("created bucket %s", cfg.minio_bucket)
 
-    producer = KafkaProducer(
-        bootstrap_servers=[cfg.kafka_broker],
-        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+    def ensure_bucket():
+        if not store.bucket_exists(cfg.minio_bucket):
+            store.make_bucket(cfg.minio_bucket)
+            log.info("created bucket %s", cfg.minio_bucket)
+        return store
+
+    connect_with_retry(ensure_bucket, what=f"minio at {cfg.minio_endpoint}")
+
+    producer = connect_with_retry(
+        lambda: KafkaProducer(
+            bootstrap_servers=[cfg.kafka_broker],
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        ),
+        what=f"kafka at {cfg.kafka_broker}",
     )
 
     while True:
