@@ -193,6 +193,32 @@ docker exec sw1 ovs-ofctl -O OpenFlow13 dump-flows br-sw1 | grep priority=100
 docker logs ryu | grep BLOCK
 ```
 
+## Measured behaviour
+
+Recorded on the two-vCPU testbed, one worker per layer, 30-second windows.
+
+| Layer | Flows per window under attack | Convert | Score | Round |
+|-------|------------------------------|---------|-------|-------|
+| top | 65,768 | 8.2–9.2s | 0.4s | 8.7–9.6s |
+| inter | 131,073 | 7.1–11.9s | 0.8–0.9s | 8.0–12.8s |
+| bottom | 79,715–113,103 | 7.8–10.8s | 0.3–0.6s | 8.2–11.4s |
+
+Idle windows complete in well under two seconds. Every round finishes inside the
+30-second window, so the pipeline keeps up rather than shedding captures.
+
+Each layer was attacked in turn and the drop rule landed on that layer's switch:
+
+| Layer | Datapath | Blocked source | Packets dropped by the rule |
+|-------|----------|----------------|------------------------------|
+| top | `0000000000000001` (br-sw1) | 10.0.1.50 | 3,620,083 |
+| inter | `0000000000000002` (br-sw2) | 10.0.2.50 | 12,119,488 |
+| bottom | `0000000000000003` (br-sw3) | 10.0.3.50 | 435,264 |
+
+Fifty alerts for one source produced a single block entry with `hits: 50`, and
+the rule lapsed on its own at the timeout, leaving an empty block list and no
+`priority=100` entry in the switch. Floods launched from a whitelisted address
+were detected and deliberately not blocked.
+
 ## Mitigation API
 
 Served on port 8080 beside `ryu.app.ofctl_rest`.
