@@ -8,7 +8,7 @@ ENV CFM_HOME=/opt/cicflowmeter
 
 RUN apt-get update -qq && \
     apt-get install -y --no-install-recommends \
-        default-jre-headless libpcap0.8 tcpdump \
+        default-jre-headless libpcap0.8 libpcap-dev tcpdump \
         iproute2 iputils-ping ca-certificates && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
