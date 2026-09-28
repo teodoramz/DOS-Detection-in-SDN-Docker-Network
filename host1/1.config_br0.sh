@@ -21,7 +21,7 @@ sudo ovs-vsctl --may-exist add-port br0 gre-to-vm2 \
      options:local_ip="${HOST1_IP}" \
      options:remote_ip="${HOST2_IP}"
 
-sudo ip link set gre-to-vm2 mtu 1400
+sudo ovs-vsctl set interface gre-to-vm2 mtu_request=1400
 sudo ip link set br0 mtu 1400
 
 sudo iptables -A INPUT  -p gre -j ACCEPT

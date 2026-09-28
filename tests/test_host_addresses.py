@@ -46,3 +46,14 @@ def test_the_inventory_still_holds_the_addresses():
     """The CSV is the one place they are written down."""
     hosts = Path("startup/files/input/hosts.csv").read_text()
     assert LITERAL_IP.findall(hosts)
+
+
+@pytest.mark.parametrize("path,iface", [
+    ("host1/1.config_br0.sh", "gre-to-vm2"),
+    ("host2/1.config_br0.sh", "gre-to-vm1"),
+])
+def test_tunnel_mtu_is_set_through_ovs_not_iproute(path, iface):
+    """An OVS tunnel port has no kernel netdev, so 'ip link set' cannot find it."""
+    text = Path(path).read_text()
+    assert f"ip link set {iface} mtu" not in text
+    assert f"set interface {iface} mtu_request=1400" in text
