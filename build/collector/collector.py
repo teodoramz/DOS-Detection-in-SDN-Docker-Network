@@ -118,6 +118,15 @@ def publish_window(cfg: "CollectorConfig", *, pcap: Path, filename: str,
         Path(pcap).unlink(missing_ok=True)
 
 
+def backoff_after_failed_capture(cfg: "CollectorConfig", sleeper=time.sleep) -> None:
+    """Pause before retrying a capture that produced nothing.
+
+    tcpdump exits immediately when the interface is missing, so looping without
+    a pause is a fork storm and a log flood.
+    """
+    sleeper(min(cfg.duration, 5))
+
+
 def capture(cfg: CollectorConfig, filepath: Path) -> None:
     proc = subprocess.Popen(
         ["tcpdump", "-i", cfg.interface, "-s", "0", "-w", str(filepath)],
@@ -174,8 +183,9 @@ def main() -> int:
         capture(cfg, filepath)
 
         if not filepath.exists() or filepath.stat().st_size == 0:
-            log.warning("%s is empty, skipping", filename)
+            log.warning("%s is empty; is %s present?", filename, cfg.interface)
             filepath.unlink(missing_ok=True)
+            backoff_after_failed_capture(cfg)
             continue
 
         def publish(cfg, *, pcap, filename, started_iso):

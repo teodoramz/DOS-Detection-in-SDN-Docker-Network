@@ -183,6 +183,10 @@ def build_matrix(df: pd.DataFrame, spec: FeatureSpec) -> tuple[np.ndarray, list[
     X = frame.apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
 
     if X.size:
+        # CICFlowMeter writes Infinity when a flow's duration is zero, which
+        # single-packet floods produce constantly. to_numeric keeps those as
+        # inf, so fold them into the NaN path and impute them.
+        X[np.isinf(X)] = np.nan
         nan = np.isnan(X)
         if nan.any():
             X[nan] = np.take(spec.medians, np.where(nan)[1])

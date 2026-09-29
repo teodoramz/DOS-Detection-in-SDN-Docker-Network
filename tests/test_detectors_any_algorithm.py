@@ -155,3 +155,20 @@ def test_frame_mode_passes_the_frame_unchanged_when_nothing_is_declared(tmp_path
     det = ModelDetector(tmp_path, layer="top", estimator=est)
     det.score(frame())
     assert "Source IP" in est.seen.columns
+
+
+def test_incomplete_vectors_fall_back_to_frame_mode(tmp_path):
+    """Choosing matrix mode on the order file alone crashed at startup, and the
+    restart destroyed the container's veth."""
+    np.save(tmp_path / "top_features.npy", np.array(["a", "b"]))
+    det = ModelDetector(tmp_path, layer="top", estimator=RandomForestClassifier())
+    assert det.preprocessing == "frame"
+    assert det.spec is None
+
+
+def test_matrix_mode_needs_all_four_vectors(tmp_path):
+    np.save(tmp_path / "top_features.npy", np.array(["a"]))
+    for name in ("medians25.npy", "scaler_mean25.npy", "scaler_std25.npy"):
+        np.save(tmp_path / name, np.zeros(1))
+    det = ModelDetector(tmp_path, layer="top", estimator=RandomForestClassifier())
+    assert det.preprocessing == "matrix"

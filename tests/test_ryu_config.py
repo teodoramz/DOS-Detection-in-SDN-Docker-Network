@@ -108,3 +108,20 @@ def test_the_protected_services_are_never_blocked(ip, service):
 def test_a_client_on_a_service_subnet_is_still_blockable():
     for ip in ("10.0.1.50", "10.0.2.50", "10.0.3.50"):
         assert cfg().is_whitelisted(ip) is False
+
+
+def test_the_deployed_whitelist_matches_the_code_default():
+    """compose passes BLOCK_WHITELIST from .env, so that copy is what runs.
+    Editing config.py alone would change nothing on the testbed."""
+    from pathlib import Path
+
+    from ddos_ryu.config import DEFAULT_WHITELIST
+
+    line = next(
+        l for l in Path("startup/templates/env.j2").read_text().splitlines()
+        if l.startswith("BLOCK_WHITELIST=")
+    )
+    rendered = line.split("=", 1)[1].strip()
+    assert set(rendered.split(",")) == set(DEFAULT_WHITELIST.split(",")), (
+        "env.j2 and config.py disagree; the .env copy is the one that runs"
+    )

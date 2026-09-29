@@ -6,6 +6,7 @@ import logging
 import subprocess
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from .features import ensure_duplicate_header_column, rename_columns
@@ -72,4 +73,7 @@ def read_flows(csv_path: Path) -> pd.DataFrame:
         df = pd.read_csv(csv_path, low_memory=False)
     except pd.errors.EmptyDataError as exc:
         raise FlowMeterError(f"flow CSV is empty: {csv_path}") from exc
+    # A self-contained pipeline receives these columns as they are, and
+    # sklearn rejects infinity outright.
+    df = df.replace([np.inf, -np.inf], np.nan)
     return ensure_duplicate_header_column(rename_columns(df))

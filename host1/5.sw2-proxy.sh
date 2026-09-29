@@ -1,34 +1,40 @@
+#!/bin/bash
+# Re-runnable: every operation either replaces what is there or is skipped when
+# it already exists.
+
+link_absent() { ! ip link show "$1" >/dev/null 2>&1; }
+
 # PROXY-SRV (proxy container)
-ip link add veth-proxy-srv type veth peer name veth-sw2-psrv
+link_absent veth-proxy-srv && ip link add veth-proxy-srv type veth peer name veth-sw2-psrv || true
 ip link set veth-proxy-srv netns $(docker inspect -f '{{.State.Pid}}' proxy)
 ip link set veth-sw2-psrv netns $(docker inspect -f '{{.State.Pid}}' sw2)
 
 docker exec proxy ip link set veth-proxy-srv name eth0
-docker exec proxy ip addr add 10.0.2.2/24 dev eth0
-docker exec proxy ip addr add 10.255.255.21/24 dev eth0
+docker exec proxy ip addr replace 10.0.2.2/24 dev eth0
+docker exec proxy ip addr replace 10.255.255.21/24 dev eth0
 docker exec proxy ip link set eth0 up
 docker exec proxy ip link set eth0  mtu 1400 
-docker exec proxy ip route add default via 10.0.2.1
+docker exec proxy ip route replace default via 10.0.2.1
 
 docker exec sw2 ip link set veth-sw2-psrv name eth_proxy
-docker exec sw2 ovs-vsctl add-port br-sw2 eth_proxy
+docker exec sw2 ovs-vsctl --may-exist add-port br-sw2 eth_proxy
 docker exec sw2 ip link set eth_proxy up
 docker exec sw2 ip link set eth_proxy  mtu 1400 
 
 # PROXY-COL (proxy collector container)
-ip link add veth-proxy-col type veth peer name veth-sw2-pcol
+link_absent veth-proxy-col && ip link add veth-proxy-col type veth peer name veth-sw2-pcol || true
 ip link set veth-proxy-col netns $(docker inspect -f '{{.State.Pid}}' proxy_collector)
 ip link set veth-sw2-pcol netns $(docker inspect -f '{{.State.Pid}}' sw2)
 
 docker exec proxy_collector ip link set veth-proxy-col name eth0
-docker exec proxy_collector ip addr add 10.0.2.6/24 dev eth0
-docker exec proxy_collector ip addr add 10.255.255.22/24 dev eth0
+docker exec proxy_collector ip addr replace 10.0.2.6/24 dev eth0
+docker exec proxy_collector ip addr replace 10.255.255.22/24 dev eth0
 docker exec proxy_collector ip link set eth0 up
 docker exec proxy_collector ip link set eth0  mtu 1400 
-#docker exec proxy_collector ip route add default via 10.0.2.1
+#docker exec proxy_collector ip route replace default via 10.0.2.1
 
 docker exec sw2 ip link set veth-sw2-pcol name eth_pcol
-docker exec sw2 ovs-vsctl add-port br-sw2 eth_pcol
+docker exec sw2 ovs-vsctl --may-exist add-port br-sw2 eth_pcol
 docker exec sw2 ip link set eth_pcol up
 docker exec sw2 ip link set eth_pcol  mtu 1400 
 

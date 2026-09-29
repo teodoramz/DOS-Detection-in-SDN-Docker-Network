@@ -23,6 +23,6 @@ COPY models /app/models
 COPY entrypoint.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-ENV PYTHONUNBUFFERED=1 JAVA_OPTS="-Xms256m -Xmx1g"
+ENV PYTHONUNBUFFERED=1 JAVA_OPTS="-Xms256m -Xmx1g -Dlog4j2.formatMsgNoLookups=true"
 
 ENTRYPOINT ["entrypoint.sh"]

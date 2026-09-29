@@ -63,6 +63,12 @@ def parse_message(raw) -> dict:
     obj = payload.get("object") or payload.get("filename")
     if not obj:
         raise MessageError(f"no object or filename in {payload!r}")
+    if not isinstance(obj, str):
+        raise MessageError(f"object must be a string, got {type(obj).__name__}")
+
+    bucket = payload.get("bucket")
+    if bucket is not None and not isinstance(bucket, str):
+        raise MessageError(f"bucket must be a string, got {type(bucket).__name__}")
 
     return {**payload, "object": obj}
 
@@ -118,6 +124,65 @@ def process_capture(pcap: Path, cfg: WorkerConfig, detector, window_start: str, 
     return alerts
 
 
+def window_end_for(captured_at, duration_s: int) -> str:
+    """The window closes duration_s after it opened."""
+    start = _parse_timestamp(captured_at)
+    if start is None:
+        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=timezone.utc)
+    end = start + timedelta(seconds=max(int(duration_s or 0), 0))
+    return end.isoformat().replace("+00:00", "Z")
+
+
+def handle_record(record, cfg: WorkerConfig, detector, store, producer) -> None:
+    """Process one capture reference. Never raises."""
+    window = None
+    try:
+        message = parse_message(record.value)
+    except MessageError as exc:
+        log.warning("skipping malformed message: %s", exc)
+        return
+
+    try:
+        captured_at = message.get("captured_at")
+        if is_stale(captured_at, datetime.now(timezone.utc), cfg.max_lag_seconds):
+            log.warning("skipping %s, older than %ds", message["object"], cfg.max_lag_seconds)
+            return
+
+        window = cfg.work_dir / message["object"].replace("/", "_")
+        window.mkdir(parents=True, exist_ok=True)
+        pcap = window / Path(message["object"]).name
+        bucket = message.get("bucket") or cfg.minio_bucket
+
+        try:
+            store.fget_object(bucket, message["object"], str(pcap))
+        except Exception as exc:
+            log.warning("cannot fetch %s/%s: %s", bucket, message["object"], exc)
+            return
+
+        window_start = captured_at or datetime.now(timezone.utc).isoformat().replace(
+            "+00:00", "Z"
+        )
+        window_end = window_end_for(captured_at, message.get("duration_s", 0))
+        alerts = process_capture(pcap, cfg, detector, window_start, window_end)
+        for alert in alerts:
+            producer.send(cfg.alert_topic, alert.to_dict())
+            log.warning(
+                "ALERT %s %s p=%.3f %d/%d flows",
+                alert.layer, alert.source_ip, alert.max_probability,
+                alert.flows_malicious, alert.flows_total,
+            )
+        producer.flush()
+    except FlowMeterError as exc:
+        log.error("flow extraction failed: %s", exc)
+    except Exception:
+        log.exception("unhandled error processing a capture")
+    finally:
+        if window is not None:
+            shutil.rmtree(window, ignore_errors=True)
+
+
 def main() -> int:
     logging.basicConfig(
         level=os.environ.get("LOG_LEVEL", "INFO"),
@@ -147,61 +212,37 @@ def main() -> int:
         ),
         what=f"kafka producer at {cfg.kafka_broker}",
     )
-    consumer = connect_with_retry(
-        lambda: KafkaConsumer(
-            cfg.capture_topic,
-            bootstrap_servers=[cfg.kafka_broker],
-            group_id=f"ddos-worker-{cfg.layer}",
-            auto_offset_reset="latest",
-            enable_auto_commit=True,
-        ),
-        what=f"kafka consumer on {cfg.capture_topic}",
-    )
-    log.info("consuming %s from %s", cfg.capture_topic, cfg.kafka_broker)
-
     cfg.work_dir.mkdir(parents=True, exist_ok=True)
 
-    for record in consumer:
-        try:
-            message = parse_message(record.value)
-        except MessageError as exc:
-            log.warning("skipping malformed message: %s", exc)
-            continue
+    def consume_forever():
+        """Never returns. Exiting would restart the container and destroy the
+        veth the topology scripts attached to it."""
+        while True:
+            consumer = connect_with_retry(
+                lambda: KafkaConsumer(
+                    cfg.capture_topic,
+                    bootstrap_servers=[cfg.kafka_broker],
+                    group_id=f"ddos-worker-{cfg.layer}",
+                    auto_offset_reset="latest",
+                    enable_auto_commit=True,
+                ),
+                what=f"kafka consumer on {cfg.capture_topic}",
+            )
+            log.info("consuming %s from %s", cfg.capture_topic, cfg.kafka_broker)
+            try:
+                for record in consumer:
+                    handle_record(record, cfg, detector, store, producer)
+                log.warning("consumer stream ended; reconnecting")
+            except Exception:
+                log.exception("consumer failed; reconnecting in 5s")
+                time.sleep(5)
+            finally:
+                try:
+                    consumer.close()
+                except Exception:
+                    pass
 
-        captured_at = message.get("captured_at")
-        if is_stale(captured_at, datetime.now(timezone.utc), cfg.max_lag_seconds):
-            log.warning("skipping %s, older than %ds", message["object"], cfg.max_lag_seconds)
-            continue
-
-        window = cfg.work_dir / message["object"].replace("/", "_")
-        window.mkdir(parents=True, exist_ok=True)
-        pcap = window / Path(message["object"]).name
-        bucket = message.get("bucket") or cfg.minio_bucket
-
-        try:
-            store.fget_object(bucket, message["object"], str(pcap))
-        except Exception as exc:
-            log.warning("cannot fetch %s/%s: %s", bucket, message["object"], exc)
-            shutil.rmtree(window, ignore_errors=True)
-            continue
-
-        try:
-            window_end = captured_at or datetime.now(timezone.utc).isoformat()
-            alerts = process_capture(pcap, cfg, detector, captured_at or window_end, window_end)
-            for alert in alerts:
-                producer.send(cfg.alert_topic, alert.to_dict())
-                log.warning(
-                    "ALERT %s %s p=%.3f %d/%d flows",
-                    alert.layer, alert.source_ip, alert.max_probability,
-                    alert.flows_malicious, alert.flows_total,
-                )
-            producer.flush()
-        except FlowMeterError as exc:
-            log.error("flow extraction failed for %s: %s", pcap.name, exc)
-        except Exception:
-            log.exception("unhandled error processing %s", pcap.name)
-        finally:
-            shutil.rmtree(window, ignore_errors=True)
+    consume_forever()
 
     return 0
 

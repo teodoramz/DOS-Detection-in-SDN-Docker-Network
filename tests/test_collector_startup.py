@@ -106,3 +106,21 @@ def test_a_failed_window_still_removes_its_capture_file(tmp_path):
     mod.publish_window(cfg, pcap=pcap, filename="c.pcap",
                        started_iso="2026-09-28T13:00:00Z", publish=boom)
     assert not pcap.exists(), "a failed window must not leak its pcap"
+
+
+def test_a_failed_capture_backs_off_instead_of_spinning(tmp_path, monkeypatch):
+    """If the interface is gone, tcpdump exits at once; looping with no pause
+    is a fork storm on a two-vCPU host."""
+    import collector as mod
+
+    cfg = mod.CollectorConfig.from_env({"LAYER": "top", "TMP_DIR": str(tmp_path)})
+    slept = []
+    mod.backoff_after_failed_capture(cfg, sleeper=slept.append)
+    assert slept and slept[0] > 0
+
+
+def test_the_capture_loop_calls_the_backoff():
+    source = Path("build/collector/collector.py").read_text()
+    assert "backoff_after_failed_capture" in source
+    body = source[source.index("def main("):]
+    assert body.index("backoff_after_failed_capture") < body.index("continue")

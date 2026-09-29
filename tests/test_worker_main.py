@@ -60,3 +60,21 @@ def test_missing_timestamp_is_never_stale():
 
 def test_unparseable_timestamp_is_never_stale():
     assert is_stale("last tuesday", NOW, 120) is False
+
+
+def test_window_end_is_the_start_plus_the_duration():
+    from ddos_worker.main import window_end_for
+
+    assert window_end_for("2026-09-28T15:30:00Z", 30) == "2026-09-28T15:30:30Z"
+
+
+def test_window_end_without_a_timestamp_is_the_present():
+    from ddos_worker.main import window_end_for
+
+    assert window_end_for(None, 30).endswith("Z")
+
+
+def test_window_end_tolerates_a_missing_duration():
+    from ddos_worker.main import window_end_for
+
+    assert window_end_for("2026-09-28T15:30:00Z", 0) == "2026-09-28T15:30:00Z"

@@ -28,7 +28,7 @@ def test_datapath_ids_match_the_default_layer_map():
 
 def test_bridges_still_point_at_the_controller():
     assert "set-controller" in RYU_SW
-    assert "10.255.255.254:6633" in RYU_SW
+    assert "${HOST1_MGMT_IP}" in RYU_SW and "${SDN_PORT}" in RYU_SW
 
 
 def test_bridges_keep_openflow13_and_fail_secure():

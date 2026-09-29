@@ -18,7 +18,15 @@ from .base import Detector
 log = logging.getLogger(__name__)
 
 MODEL_FILENAME = "models.joblib"
-FEATURE_ORDER_FILENAME = "top_features.npy"
+
+#: All four are needed for matrix mode; a partial set means the model is meant
+#: to preprocess for itself.
+PREPROCESSING_FILES = (
+    "top_features.npy",
+    "medians25.npy",
+    "scaler_mean25.npy",
+    "scaler_std25.npy",
+)
 
 
 def _final_estimator(estimator):
@@ -62,7 +70,7 @@ class ModelDetector(Detector):
                  estimator=None):
         self.model_dir = Path(model_dir)
 
-        has_vectors = (self.model_dir / FEATURE_ORDER_FILENAME).is_file()
+        has_vectors = all((self.model_dir / name).is_file() for name in PREPROCESSING_FILES)
         self.spec = FeatureSpec.load(self.model_dir) if has_vectors else None
         self.preprocessing = "matrix" if has_vectors else "frame"
 

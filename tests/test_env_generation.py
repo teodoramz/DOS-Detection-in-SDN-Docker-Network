@@ -15,12 +15,18 @@ COMPOSE = ["docker-compose-host1.yml", "docker-compose-host2.yml"]
 
 @pytest.fixture(scope="module")
 def rendered(tmp_path_factory):
+    """Render into a throwaway copy: this suite may run on a deployed host,
+    where rewriting the repo-root .env would touch the live deployment."""
+    import shutil
+
+    home = tmp_path_factory.mktemp("ddos_home")
+    shutil.copytree("startup", home / "startup")
     subprocess.run(
-        [sys.executable, "startup/scripts/update_env.py"],
-        env={**os.environ, "DDOS_DETECTION_HOME": str(Path.cwd())},
+        [sys.executable, str(Path("startup/scripts/update_env.py").resolve())],
+        env={**os.environ, "DDOS_DETECTION_HOME": str(home)},
         check=True, capture_output=True,
     )
-    text = Path(".env").read_text()
+    text = (home / ".env").read_text()
     return {
         m.group(1): m.group(2)
         for m in (re.match(r"^([A-Za-z0-9_]+)=(.*)$", line) for line in text.splitlines())
@@ -69,11 +75,18 @@ def test_no_value_with_a_space_is_left_unquoted(rendered):
     assert not bad, f"these would break 'source .env': {bad}"
 
 
-def test_the_env_file_can_be_sourced_by_a_shell():
-    import subprocess
+def test_the_env_file_can_be_sourced_by_a_shell(tmp_path_factory):
+    import shutil
 
+    home = tmp_path_factory.mktemp("ddos_source")
+    shutil.copytree("startup", home / "startup")
+    subprocess.run(
+        [sys.executable, str(Path("startup/scripts/update_env.py").resolve())],
+        env={**os.environ, "DDOS_DETECTION_HOME": str(home)},
+        check=True, capture_output=True,
+    )
     result = subprocess.run(
-        ["bash", "-c", "set -euo pipefail; set -a; source .env; set +a; echo OK"],
+        ["bash", "-c", f"set -euo pipefail; set -a; source {home}/.env; set +a; echo OK"],
         capture_output=True, text=True,
     )
     assert result.returncode == 0, result.stderr[-400:]

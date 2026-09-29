@@ -29,4 +29,4 @@ def test_minio_still_gets_both_addresses_and_a_route():
 
 
 def test_the_switch_side_still_uses_docker_exec():
-    assert "docker exec sw5 ovs-vsctl add-port br-sw5 eth_s3" in minio_block()
+    assert "docker exec sw5 ovs-vsctl --may-exist add-port br-sw5 eth_s3" in minio_block()
