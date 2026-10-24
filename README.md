@@ -55,36 +55,37 @@ block is enforced; it says nothing about *which* algorithm scores it.
 | Layer | Switch | Model directory | Ships | Active detector |
 |-------|--------|-----------------|-------|-----------------|
 | top | br-sw1 | `build/worker/models/top` | XGBoost, 25 features | the model |
-| inter | br-sw2 | `build/worker/models/inter` | XGBoost, 25 features | placeholder |
-| bottom | br-sw3 | `build/worker/models/bottom` | XGBoost, 25 features | placeholder |
+| inter | br-sw2 | `build/worker/models/inter` | XGBoost, 25 features | the model |
+| bottom | br-sw3 | `build/worker/models/bottom` | XGBoost, 25 features | the model |
 
 Each layer has its own feature set, selected during its own training run, so the
 three directories do not hold the same 25 names.
 
 `WORKER_<LAYER>_DETECTOR` in `.env` picks what each worker runs — `auto` (the
 model when its artifacts are present), `model` (refuse to start without one) or
-`heuristic`. Two layers are set to `heuristic` because of measurements on this
-testbed, not preference:
+`heuristic`. All three run their model. What each one actually measures, on
+flows captured from this testbed:
 
 | Layer | Attack flows ≥ 0.5 | Benign flows ≥ 0.5 | Verdict |
 |-------|--------------------|--------------------|---------|
-| top | 490 / 490 | **47 / 47** | fires on the attack and on benign DNS alike — it separates nothing |
-| inter | 0 / 20,000 | 0 / 212 | never crosses the threshold, so it never alerts |
-| bottom | 230 / 20,000 | 0 / 407 | the only real separation, but it names the victim, whose address is whitelisted |
+| top | 545 / 545 | **185 / 185** | fires on the attack and on benign DNS alike — it separates nothing |
+| inter | 48 / 51 (p = 0.5573) | 0 / 210 (p = 0.0113) | clean separation, thin margin; alerts on the attacker only |
+| bottom | 118 / 15,486 | 0 / 441 | benign stays under 0.43; the spoofed attacker clears the threshold on all 48 of its flows |
 
-Measured on committed flows captured from the running testbed —
-`training/data/testbed_<layer>.csv.gz`, with the full table and method in
+Measured on committed flows — `training/data/testbed_<layer>.csv.gz`, with the
+method and the full table in
 [`training/reports/testbed_baseline.md`](training/reports/testbed_baseline.md).
 
-The cause is train/serve domain drift, not a bug in the pipeline: CIC-DDoS2019
-flows carry a median 344-byte packet at ~40,000 packets/s, while this testbed's
-floods produce flows whose median packet length and rate are orders of magnitude
-away. `training/` exists to close that gap, and `WORKER_<LAYER>_DETECTOR=auto`
-switches a model back on once a retrained one passes the notebook's gate.
+An earlier measurement had inter at 0.0002 and bottom naming only the victim,
+and the difference was the attack, not the models: `hping3 --flood` walks the
+source port space, leaving one packet per 5-tuple at a fraction of a packet per
+second, and CICFlowMeter discards single-packet flows. `launch_spoofed_flows`
+now holds 16 source ports open with 512-byte payloads at hping3's own rate.
 
-The top layer keeps its model because it does fire on attacks and it is the
-classifier the thesis deployed, but the table above is the honest reading: in a
-network where legitimate clients were not whitelisted, it would block them too.
+The top layer's model is the weak one: it scores benign DNS at 1.0000 too. It
+looks correct here only because every legitimate address in the testbed is
+whitelisted, so the attacker is the only source that can produce a block. In a
+network where clients were not whitelisted it would block them as well.
 
 XGBoost is simply what the top layer ships with today, not a requirement. Any
 fitted estimator that exposes `predict_proba`, `decision_function` or `predict`

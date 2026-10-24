@@ -33,8 +33,18 @@ def test_every_layer_has_a_gate_set(layer):
 def test_both_classes_are_present(layer):
     data = dataset(layer)
     assert set(data.y.unique()) == {0, 1}, "a gate needs both classes"
-    assert (data.y == 1).sum() >= 100
+    assert (data.y == 1).sum() >= 40
     assert (data.y == 0).sum() >= 40
+
+
+@pytest.mark.parametrize("layer", LAYERS)
+def test_one_source_can_trigger_the_deployed_rule(layer):
+    """The gate simulates an alert, which needs ALERT_MIN_FLOWS (10) attack
+    flows from a single source. A spoofed flood of 16 fixed-port streams gives
+    far fewer rows than a port-churning one, and that is the realistic shape."""
+    data = dataset(layer)
+    per_source = data[data.y == 1].groupby("Source IP").size()
+    assert per_source.max() >= 10, f"{layer}: no source reaches the alert minimum"
 
 
 @pytest.mark.parametrize("layer", LAYERS)
