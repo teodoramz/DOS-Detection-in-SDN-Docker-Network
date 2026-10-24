@@ -45,3 +45,17 @@ def test_the_certificate_carries_the_expected_name(tmp_path):
         capture_output=True, text=True,
     ).stdout
     assert "cyberstuff.local" in out
+
+
+def test_the_certificate_carries_the_subject_alternative_names(tmp_path):
+    """openssl req -x509 reads x509_extensions, not req_extensions, so without
+    it the names in the config never reach the certificate."""
+    env = {**os.environ, "DDOS_DETECTION_HOME": str(Path.cwd()), "CERT_MODE": "1"}
+    subprocess.run(["bash", str(SCRIPT), str(tmp_path)], env=env,
+                   stdin=subprocess.DEVNULL, capture_output=True, timeout=60)
+    out = subprocess.run(
+        ["openssl", "x509", "-in", str(tmp_path / "cyberstuff.crt"), "-noout", "-text"],
+        capture_output=True, text=True,
+    ).stdout
+    assert "Subject Alternative Name" in out
+    assert "DNS:*.cyberstuff.local" in out
