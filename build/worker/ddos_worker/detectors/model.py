@@ -40,8 +40,11 @@ def _algorithm_of(estimator) -> str:
     return type(_final_estimator(estimator)).__name__
 
 
-def _probabilities(estimator, X) -> np.ndarray:
-    """One probability of attack per row, whatever interface the model offers."""
+def probabilities(estimator, X) -> np.ndarray:
+    """One probability of attack per row, whatever interface the model offers.
+
+    Public so training can score candidates exactly as the worker will.
+    """
     if hasattr(estimator, "predict_proba"):
         proba = np.asarray(estimator.predict_proba(X), dtype=float)
         scores = proba[:, 1] if proba.ndim == 2 and proba.shape[1] > 1 else proba.ravel()
@@ -104,7 +107,7 @@ class ModelDetector(Detector):
             return np.empty(0, dtype=float)
 
         if self.spec is None:
-            return _probabilities(self.estimator, self._align(df))
+            return probabilities(self.estimator, self._align(df))
 
         X, missing = build_matrix(df, self.spec)
         if missing:
@@ -114,4 +117,4 @@ class ModelDetector(Detector):
             )
         if X.shape[0] == 0:
             return np.empty(0, dtype=float)
-        return _probabilities(self.estimator, X)
+        return probabilities(self.estimator, X)

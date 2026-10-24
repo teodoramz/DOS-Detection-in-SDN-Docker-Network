@@ -138,3 +138,11 @@ def test_naive_timestamps_are_read_as_utc(collector_module):
 def test_the_label_must_be_binary(collector_module):
     with pytest.raises(SystemExit):
         collector_module.parse_args(["--label", "7", "--out", "/tmp/x.csv"])
+
+
+def test_the_notebook_scores_with_the_worker_s_own_probability_rule(source):
+    """predict_proba / decision_function / predict is a three-way fallback;
+    a second copy of it in the notebook can disagree with the deployed one."""
+    assert "probabilities" in source
+    assert "from ddos_worker.detectors.model import probabilities" in source
+    assert "def probabilities(" not in source, "the notebook must not define its own"
