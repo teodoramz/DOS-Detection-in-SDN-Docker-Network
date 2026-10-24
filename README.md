@@ -182,8 +182,14 @@ launched from the host is detected but deliberately not blocked. To see a rule
 installed, give the flood a source that is not whitelisted:
 
 ```bash
-SPOOF_SOURCE=10.0.1.50 DURATION=180 ./attacks/top.sh
+SPOOF_SOURCE=10.0.1.111 DURATION=180 ./attacks/top.sh
 ```
+
+`SPOOF_SOURCE` also adds a second stream from that address which repeats a
+bounded set of source ports. An `hping3 --flood` walks the whole port space, so
+under load each 5-tuple can end up carrying one packet, and CICFlowMeter
+discards single-packet flows — the spoofed source would then never reach
+`ALERT_MIN_FLOWS` however much traffic it sent.
 
 After an attack, a blocked source appears in three places:
 
@@ -210,12 +216,15 @@ Each layer was attacked in turn and the drop rule landed on that layer's switch:
 
 | Layer | Datapath | Blocked source | Packets dropped by the rule |
 |-------|----------|----------------|------------------------------|
-| top | `0000000000000001` (br-sw1) | 10.0.1.50 | 3,620,083 |
-| inter | `0000000000000002` (br-sw2) | 10.0.2.50 | 12,119,488 |
-| bottom | `0000000000000003` (br-sw3) | 10.0.3.50 | 435,264 |
+| top | `0000000000000001` (br-sw1) | 10.0.1.111 | 86,662 |
+| inter | `0000000000000002` (br-sw2) | 10.0.2.111 | 519,137 |
+| bottom | `0000000000000003` (br-sw3) | 10.0.3.111 | 89,868 |
 
-Fifty alerts for one source produced a single block entry with `hits: 50`, and
-the rule lapsed on its own at the timeout, leaving an empty block list and no
+Each block landed inside the first 30-second window of the attack and was
+refreshed, not duplicated, by the following window's alert.
+
+Repeated alerts for one source produce a single block entry with a rising
+`hits` count, and the rule lapses on its own at the timeout, leaving an empty block list and no
 `priority=100` entry in the switch. Floods launched from a whitelisted address
 were detected and deliberately not blocked.
 

