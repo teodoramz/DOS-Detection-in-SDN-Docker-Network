@@ -89,3 +89,11 @@ def test_minio_runs_the_server_without_a_shell_wrapper():
     dockerfile = Path("build/minio/Dockerfile").read_text()
     assert "wait-for-eth0" not in dockerfile
     assert "--console-address" in dockerfile
+
+
+@pytest.mark.parametrize("worker,layer", [("worker1", "top"), ("worker2", "inter"), ("worker3", "bottom")])
+def test_each_worker_chooses_its_detector_from_the_environment(worker, layer):
+    """A model that does not fire live has to be switchable off per layer
+    without touching the other two."""
+    env = HOST2["services"][worker]["environment"]
+    assert env["DETECTOR"] == "${WORKER_%s_DETECTOR}" % layer.upper()

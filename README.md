@@ -52,14 +52,31 @@ The controller also carries the learning-switch logic. The bridges run
 One detector per layer, each chosen independently. The layer decides *where* a
 block is enforced; it says nothing about *which* algorithm scores it.
 
-| Layer | Switch | Model directory | Currently |
-|-------|--------|-----------------|-----------|
-| top | br-sw1 | `build/worker/models/top` | XGBoost classifier, 25 features |
-| inter | br-sw2 | `build/worker/models/inter` | XGBoost classifier, 25 features |
-| bottom | br-sw3 | `build/worker/models/bottom` | XGBoost classifier, 25 features |
+| Layer | Switch | Model directory | Ships | Active detector |
+|-------|--------|-----------------|-------|-----------------|
+| top | br-sw1 | `build/worker/models/top` | XGBoost, 25 features | the model |
+| inter | br-sw2 | `build/worker/models/inter` | XGBoost, 25 features | placeholder |
+| bottom | br-sw3 | `build/worker/models/bottom` | XGBoost, 25 features | placeholder |
 
 Each layer has its own feature set, selected during its own training run, so the
 three directories do not hold the same 25 names.
+
+`WORKER_<LAYER>_DETECTOR` in `.env` picks what each worker runs — `auto` (the
+model when its artifacts are present), `model` (refuse to start without one) or
+`heuristic`. Two layers are set to `heuristic` because of measurements on this
+testbed, not preference:
+
+| Layer | Model on live attack traffic |
+|-------|------------------------------|
+| top | p = 1.000 on the flood source; blocks it |
+| inter | p pinned at 0.325 across 0.1 → 1,678 packets/s, 50k-packet flows and 512-byte payloads; never reaches the threshold, so it never alerts |
+| bottom | p = 0.991, but on the web server's side of the flow — a whitelisted address — so the attacker goes unblocked |
+
+The cause is train/serve domain drift, not a bug in the pipeline: CIC-DDoS2019
+flows carry a median 344-byte packet at ~40,000 packets/s, while this testbed's
+floods produce flows whose median packet length and rate are orders of magnitude
+away. `training/` exists to close that gap, and `WORKER_INTER_DETECTOR=auto`
+switches the model back on once a retrained one passes the notebook's gate.
 
 XGBoost is simply what the top layer ships with today, not a requirement. Any
 fitted estimator that exposes `predict_proba`, `decision_function` or `predict`
@@ -107,6 +124,39 @@ for its own imputer.
 The worker picks the mode automatically from which files it finds, and
 `DETECTOR=model` forces it to refuse the heuristic fallback if the artifacts are
 missing.
+
+## Training
+
+`training/train_layer_model.ipynb` trains one layer and writes the five files
+above. Set `LAYER`, point `DATA_DIR` at the CIC-DDoS2019 CSVs, run it top to
+bottom. It differs from an ordinary training notebook in four ways, each for a
+failure this project already hit:
+
+- **Only servable features.** Candidates come from `COLUMN_MAPPING.values()` —
+  the worker's own translation table — so a feature the converter cannot produce
+  can never be selected. A model trained on `Inbound`, `Unnamed: 0` or the ports
+  scores beautifully offline and is worthless live.
+- **The serving transformation, not a copy of it.** The notebook imports
+  `build_matrix` and `FeatureSpec` from the worker package, so the matrix it
+  trains on is built by the same code that will build it in production.
+- **Alert-level scoring.** Per-flow F1 is reported, but models are ranked by
+  whether the deployed rule — `ALERT_MIN_FLOWS` flows at or above
+  `ALERT_THRESHOLD` from one source — actually fires.
+- **A testbed gate.** Section 8 scores flows captured on this testbed and
+  refuses to recommend a model that would not raise a single alert.
+
+`training/collect_testbed_flows.py` produces the labelled flows that gate needs,
+converting captures already sitting in MinIO:
+
+```bash
+docker cp training/collect_testbed_flows.py worker2:/tmp/
+docker exec worker2 python3 /tmp/collect_testbed_flows.py --label 1 --last 6 --out /tmp/attack.csv
+docker exec worker2 python3 /tmp/collect_testbed_flows.py --label 0 --last 6 --out /tmp/idle.csv
+```
+
+Export only a bare estimator. A pipeline holding a class defined in the notebook
+cannot be unpickled anywhere else, which is why the earlier
+`pipe_SMOTE_XGB.joblib` artifacts were never deployable.
 
 ## Requirements
 
@@ -253,6 +303,7 @@ All of it reaches the containers through the generated `.env`.
 | `ALERT_THRESHOLD` | `0.5` | probability at or above which a flow counts as malicious |
 | `ALERT_MIN_FLOWS` | `10` | malicious flows from one source before an alert; `1` alerts on any single flow |
 | `MAX_LAG_SECONDS` | `120` | skip captures older than this; `0` disables the check |
+| `WORKER_<LAYER>_DETECTOR` | `auto` / `heuristic` | per-layer detector: `auto`, `model` or `heuristic` |
 | `BLOCK_HARD_TIMEOUT` | `300` | drop-rule lifetime, seconds; `0` never expires |
 | `BLOCK_PRIORITY` | `100` | OpenFlow priority of drop rules |
 | `BLOCK_WHITELIST` | gateways, collectors, mgmt range, host2 services | never blocked |
@@ -300,6 +351,7 @@ deploy/        per-host bring-up
 host1/ host2/  numbered topology scripts
 startup/       CSV inventory, env template, generators
 tests/         pytest suite
+training/      the per-layer training notebook and its data collector
 tools/         offline helpers
 utils/         dependencies, cleanup
 ```

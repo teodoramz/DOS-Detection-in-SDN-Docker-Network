@@ -91,3 +91,8 @@ def test_the_env_file_can_be_sourced_by_a_shell(tmp_path_factory):
     )
     assert result.returncode == 0, result.stderr[-400:]
     assert "OK" in result.stdout
+
+
+@pytest.mark.parametrize("layer", ["TOP", "INTER", "BOTTOM"])
+def test_a_detector_is_rendered_for_every_layer(rendered, layer):
+    assert rendered[f"WORKER_{layer}_DETECTOR"] in ("auto", "model", "heuristic")
