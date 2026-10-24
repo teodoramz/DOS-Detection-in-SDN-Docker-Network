@@ -56,6 +56,7 @@ class CollectorConfig:
     minio_secure: bool
     kafka_broker: str
     kafka_topic: str
+    retention_hours: int
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "CollectorConfig":
@@ -71,6 +72,17 @@ class CollectorConfig:
         if duration < 1:
             raise ValueError(f"CAPTURE_DURATION must be at least 1, got {duration}")
 
+        raw_retention = env.get("CAPTURE_RETENTION_HOURS")
+        raw_retention = "24" if raw_retention in (None, "") else raw_retention
+        try:
+            retention = int(raw_retention)
+        except ValueError as exc:
+            raise ValueError(
+                f"CAPTURE_RETENTION_HOURS must be an integer, got {raw_retention!r}"
+            ) from exc
+        if retention < 0:
+            raise ValueError(f"CAPTURE_RETENTION_HOURS cannot be negative, got {retention}")
+
         return cls(
             layer=layer,
             interface=env.get("CAPTURE_INTERFACE", "eth0"),
@@ -83,6 +95,7 @@ class CollectorConfig:
             minio_secure=env.get("MINIO_SECURE", "false").lower() == "true",
             kafka_broker=env.get("KAFKA_BROKER", "10.0.5.2:9092"),
             kafka_topic=env.get("KAFKA_TOPIC") or LAYER_TOPICS[layer],
+            retention_hours=retention,
         )
 
 
@@ -118,6 +131,35 @@ def publish_window(cfg: "CollectorConfig", *, pcap: Path, filename: str,
         Path(pcap).unlink(missing_ok=True)
 
 
+def prune_old_captures(cfg: "CollectorConfig", store) -> int:
+    """Delete this layer's captures past the retention window.
+
+    Nothing reads them: the worker refuses a window older than MAX_LAG_SECONDS,
+    so without this the bucket grows for as long as the testbed runs. Failures
+    are swallowed for the same reason publishing failures are.
+    """
+    if cfg.retention_hours <= 0:
+        return 0
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=cfg.retention_hours)
+    removed = 0
+    try:
+        for obj in list(store.list_objects(cfg.minio_bucket, recursive=True)):
+            stamp = getattr(obj, "last_modified", None)
+            if stamp is None or stamp >= cutoff:
+                continue
+            store.remove_object(cfg.minio_bucket, obj.object_name)
+            removed += 1
+    except Exception as exc:
+        log.warning("could not prune %s (%s); continuing", cfg.minio_bucket, exc)
+        return removed
+
+    if removed:
+        log.info("pruned %d captures older than %dh from %s",
+                 removed, cfg.retention_hours, cfg.minio_bucket)
+    return removed
+
+
 def backoff_after_failed_capture(cfg: "CollectorConfig", sleeper=time.sleep) -> None:
     """Pause before retrying a capture that produced nothing.
 
@@ -149,8 +191,9 @@ def main() -> int:
         format="[%(asctime)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S",
     )
     cfg = CollectorConfig.from_env(os.environ)
-    log.info("layer=%s iface=%s window=%ds bucket=%s topic=%s",
-             cfg.layer, cfg.interface, cfg.duration, cfg.minio_bucket, cfg.kafka_topic)
+    log.info("layer=%s iface=%s window=%ds bucket=%s topic=%s retention=%dh",
+             cfg.layer, cfg.interface, cfg.duration, cfg.minio_bucket, cfg.kafka_topic,
+             cfg.retention_hours)
 
     from kafka import KafkaProducer
     from minio import Minio
@@ -206,6 +249,7 @@ def main() -> int:
             started_iso=started.isoformat().replace("+00:00", "Z"),
             publish=publish,
         )
+        prune_old_captures(cfg, store)
 
 
 if __name__ == "__main__":

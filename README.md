@@ -129,7 +129,9 @@ missing.
 
 `training/train_layer_model.ipynb` trains one layer and writes the five files
 above. Set `LAYER`, point `DATA_DIR` at the CIC-DDoS2019 CSVs, run it top to
-bottom. It differs from an ordinary training notebook in four ways, each for a
+bottom. Section 0 bootstraps Colab — it clones this repo for the worker package,
+installs xgboost and imbalanced-learn, mounts Drive for the datasets — and the
+last cell zips the artifacts for download. It differs from an ordinary training notebook in four ways, each for a
 failure this project already hit:
 
 - **Only servable features.** Candidates come from `COLUMN_MAPPING.values()` —
@@ -300,6 +302,7 @@ All of it reaches the containers through the generated `.env`.
 |----------|---------|---------|
 | `CAPTURE_DURATION` | `30` | capture window, seconds |
 | `CAPTURE_INTERFACE` | `eth0` | interface each collector listens on |
+| `CAPTURE_RETENTION_HOURS` | `24` | delete captures older than this after each upload; `0` keeps them forever |
 | `ALERT_THRESHOLD` | `0.5` | probability at or above which a flow counts as malicious |
 | `ALERT_MIN_FLOWS` | `10` | malicious flows from one source before an alert; `1` alerts on any single flow |
 | `MAX_LAG_SECONDS` | `120` | skip captures older than this; `0` disables the check |

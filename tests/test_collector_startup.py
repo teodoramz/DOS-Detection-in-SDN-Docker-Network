@@ -124,3 +124,13 @@ def test_the_capture_loop_calls_the_backoff():
     assert "backoff_after_failed_capture" in source
     body = source[source.index("def main("):]
     assert body.index("backoff_after_failed_capture") < body.index("continue")
+
+
+def test_every_collector_gets_a_retention_window():
+    import yaml
+    services = yaml.safe_load(Path("docker-compose-host1.yml").read_text())["services"]
+    collectors = [n for n in services if n.endswith("_collector")]
+    assert len(collectors) == 3
+    for name in collectors:
+        env = services[name]["environment"]
+        assert env["CAPTURE_RETENTION_HOURS"] == "${CAPTURE_RETENTION_HOURS}", name
