@@ -1,4 +1,5 @@
 import os
+import re
 import stat
 import subprocess
 from pathlib import Path
@@ -80,8 +81,25 @@ def test_lib_offers_a_stream_whose_flows_survive_conversion():
     discards single-packet flows, so the spoofed source can go unreported."""
     text = Path("attacks/lib.sh").read_text()
     assert "launch_spoofed_flows()" in text
-    assert "range(" in text
-    assert "] * " in text
+    assert "--keep" in text, "each stream must hold one source port"
+    assert "range(" in text and "] * " in text, "the scapy fallback must still exist"
+
+
+def test_the_spoofed_stream_carries_a_flood_s_packet_rate():
+    """Flows of one packet per second are not a flood: the detector sees flow
+    records nothing like the volumetric traffic a model is trained on."""
+    text = Path("attacks/lib.sh").read_text()
+    assert "--flood" in text
+    assert "SPOOF_PAYLOAD" in text, "zero-length packets look nothing like real traffic"
+    assert "SPOOF_STREAMS" in text
+
+
+def test_the_stream_count_clears_the_alert_minimum():
+    """ALERT_MIN_FLOWS defaults to 10, and each stream contributes one flow."""
+    text = Path("attacks/lib.sh").read_text()
+    match = re.search(r'SPOOF_STREAMS:-(\d+)', text)
+    assert match, "no default stream count"
+    assert int(match.group(1)) >= 10
 
 
 @pytest.mark.parametrize("layer", ["top", "inter", "bottom"])

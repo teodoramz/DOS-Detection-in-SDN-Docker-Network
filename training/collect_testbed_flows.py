@@ -22,7 +22,6 @@ from pathlib import Path
 sys.path.insert(0, "/app")
 
 import pandas as pd
-from minio import Minio
 
 from ddos_worker.config import WorkerConfig
 from ddos_worker.flowmeter import pcap_to_csv, read_flows
@@ -64,6 +63,8 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     cfg = WorkerConfig.from_env(os.environ)
     bucket = args.bucket or cfg.minio_bucket
+
+    from minio import Minio
 
     store = Minio(
         cfg.minio_endpoint,

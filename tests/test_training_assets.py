@@ -77,3 +77,64 @@ def test_the_collector_labels_and_uses_the_worker_pipeline():
     text = COLLECTOR.read_text()
     assert "--label" in text
     assert "read_flows" in text and "pcap_to_csv" in text
+
+
+@pytest.fixture(scope="module")
+def collector_module():
+    import importlib.util
+    import sys
+
+    sys.path.insert(0, "build/worker")
+    spec = importlib.util.spec_from_file_location("collect_testbed_flows", COLLECTOR)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+class Obj:
+    def __init__(self, name, when):
+        self.object_name = name
+        self.last_modified = when
+
+
+def _objects():
+    from datetime import datetime, timedelta, timezone
+
+    base = datetime(2026, 10, 24, 12, 0, tzinfo=timezone.utc)
+    return [Obj(f"c{i}.pcap", base + timedelta(minutes=i)) for i in range(6)]
+
+
+def test_last_n_takes_the_newest_captures(collector_module):
+    args = collector_module.parse_args(["--label", "1", "--out", "/tmp/x.csv", "--last", "2"])
+    chosen = collector_module.select(_objects(), args)
+    assert [o.object_name for o in chosen] == ["c4.pcap", "c5.pcap"]
+
+
+def test_a_time_range_wins_over_last(collector_module):
+    args = collector_module.parse_args([
+        "--label", "1", "--out", "/tmp/x.csv", "--last", "2",
+        "--since", "2026-10-24T12:01:00Z", "--until", "2026-10-24T12:03:00Z",
+    ])
+    chosen = collector_module.select(_objects(), args)
+    assert [o.object_name for o in chosen] == ["c1.pcap", "c2.pcap", "c3.pcap"]
+
+
+def test_an_open_ended_range_is_allowed(collector_module):
+    args = collector_module.parse_args([
+        "--label", "0", "--out", "/tmp/x.csv", "--since", "2026-10-24T12:04:00Z",
+    ])
+    chosen = collector_module.select(_objects(), args)
+    assert [o.object_name for o in chosen] == ["c4.pcap", "c5.pcap"]
+
+
+def test_naive_timestamps_are_read_as_utc(collector_module):
+    args = collector_module.parse_args([
+        "--label", "0", "--out", "/tmp/x.csv", "--since", "2026-10-24 12:05:00",
+    ])
+    chosen = collector_module.select(_objects(), args)
+    assert [o.object_name for o in chosen] == ["c5.pcap"]
+
+
+def test_the_label_must_be_binary(collector_module):
+    with pytest.raises(SystemExit):
+        collector_module.parse_args(["--label", "7", "--out", "/tmp/x.csv"])

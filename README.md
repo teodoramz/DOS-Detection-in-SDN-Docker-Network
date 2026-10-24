@@ -66,17 +66,25 @@ model when its artifacts are present), `model` (refuse to start without one) or
 `heuristic`. Two layers are set to `heuristic` because of measurements on this
 testbed, not preference:
 
-| Layer | Model on live attack traffic |
-|-------|------------------------------|
-| top | p = 1.000 on the flood source; blocks it |
-| inter | p pinned at 0.325 across 0.1 → 1,678 packets/s, 50k-packet flows and 512-byte payloads; never reaches the threshold, so it never alerts |
-| bottom | p = 0.991, but on the web server's side of the flow — a whitelisted address — so the attacker goes unblocked |
+| Layer | Attack flows ≥ 0.5 | Benign flows ≥ 0.5 | Verdict |
+|-------|--------------------|--------------------|---------|
+| top | 490 / 490 | **47 / 47** | fires on the attack and on benign DNS alike — it separates nothing |
+| inter | 0 / 20,000 | 0 / 212 | never crosses the threshold, so it never alerts |
+| bottom | 230 / 20,000 | 0 / 407 | the only real separation, but it names the victim, whose address is whitelisted |
+
+Measured on committed flows captured from the running testbed —
+`training/data/testbed_<layer>.csv.gz`, with the full table and method in
+[`training/reports/testbed_baseline.md`](training/reports/testbed_baseline.md).
 
 The cause is train/serve domain drift, not a bug in the pipeline: CIC-DDoS2019
 flows carry a median 344-byte packet at ~40,000 packets/s, while this testbed's
 floods produce flows whose median packet length and rate are orders of magnitude
-away. `training/` exists to close that gap, and `WORKER_INTER_DETECTOR=auto`
-switches the model back on once a retrained one passes the notebook's gate.
+away. `training/` exists to close that gap, and `WORKER_<LAYER>_DETECTOR=auto`
+switches a model back on once a retrained one passes the notebook's gate.
+
+The top layer keeps its model because it does fire on attacks and it is the
+classifier the thesis deployed, but the table above is the honest reading: in a
+network where legitimate clients were not whitelisted, it would block them too.
 
 XGBoost is simply what the top layer ships with today, not a requirement. Any
 fitted estimator that exposes `predict_proba`, `decision_function` or `predict`
@@ -147,14 +155,24 @@ failure this project already hit:
 - **A testbed gate.** Section 8 scores flows captured on this testbed and
   refuses to recommend a model that would not raise a single alert.
 
-`training/collect_testbed_flows.py` produces the labelled flows that gate needs,
+One gate set per layer is already committed under `training/data/`, so section 8
+works on a fresh clone. `training/collect_testbed_flows.py` produces more,
 converting captures already sitting in MinIO:
 
 ```bash
 docker cp training/collect_testbed_flows.py worker2:/tmp/
-docker exec worker2 python3 /tmp/collect_testbed_flows.py --label 1 --last 6 --out /tmp/attack.csv
-docker exec worker2 python3 /tmp/collect_testbed_flows.py --label 0 --last 6 --out /tmp/idle.csv
+docker exec worker2 python3 /tmp/collect_testbed_flows.py --label 1 --last 3 --out /tmp/attack.csv
+docker exec worker2 python3 /tmp/collect_testbed_flows.py --label 0 --last 3 --out /tmp/benign.csv
+# or by time instead of count
+docker exec worker2 python3 /tmp/collect_testbed_flows.py --label 1 \
+    --since 2026-10-24T16:06:00Z --until 2026-10-24T16:09:00Z --out /tmp/attack.csv
 ```
+
+Run the attack **without** `SPOOF_SOURCE` while collecting: the source is then
+the host's own whitelisted address, so no drop rule lands mid-collection and
+stops the traffic being captured. The benign class needs traffic generated on
+purpose — an idle testbed yields one or two flows a window, which is not a
+benign class.
 
 Export only a bare estimator. A pipeline holding a class defined in the notebook
 cannot be unpickled anywhere else, which is why the earlier
@@ -354,7 +372,8 @@ deploy/        per-host bring-up
 host1/ host2/  numbered topology scripts
 startup/       CSV inventory, env template, generators
 tests/         pytest suite
-training/      the per-layer training notebook and its data collector
+training/      the per-layer training notebook, its data collector,
+               the committed gate sets and the measured baseline
 tools/         offline helpers
 utils/         dependencies, cleanup
 ```
