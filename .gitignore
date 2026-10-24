@@ -18,3 +18,7 @@ docs/
 
 *.pcap
 *.pdf
+
+/DNS DDOS/
+/DDOS_PROXY/
+/DDOS Services/

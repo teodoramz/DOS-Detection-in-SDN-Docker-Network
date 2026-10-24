@@ -7,6 +7,7 @@ names drift, this fails instead of silently imputing medians.
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from ddos_worker.features import (
     FeatureSpec,
@@ -14,7 +15,10 @@ from ddos_worker.features import (
     rename_columns,
 )
 
-MODEL_DIR = "build/worker/models/top"
+MODEL_DIRS = {
+    layer: Path(f"build/worker/models/{layer}")
+    for layer in ("top", "inter", "bottom")
+}
 HEADER = Path("tests/fixtures/cicflowmeter4_header.csv")
 
 
@@ -29,8 +33,9 @@ def test_the_fixture_looks_like_converter_output():
     assert "Src IP" in names
 
 
-def test_every_model_feature_is_produced_by_the_converter():
-    spec = FeatureSpec.load(MODEL_DIR)
+@pytest.mark.parametrize("layer", sorted(MODEL_DIRS))
+def test_every_model_feature_is_produced_by_the_converter(layer):
+    spec = FeatureSpec.load(MODEL_DIRS[layer])
     available = set(ensure_duplicate_header_column(rename_columns(converter_frame())).columns)
     missing = [name for name in spec.order if name not in available]
     assert not missing, (
@@ -48,3 +53,11 @@ def test_the_heuristic_inputs_are_produced_too():
     for name in ("SYN Flag Count", "Total Fwd Packets", "Flow Packets/s",
                  "Average Packet Size", "Flow Duration", "Flow Bytes/s", "Fwd PSH Flags"):
         assert name in available, f"heuristics need {name}"
+
+
+@pytest.mark.parametrize("layer", sorted(MODEL_DIRS))
+def test_every_layer_ships_a_trained_model(layer):
+    """A missing artifact silently downgrades that layer to the placeholder."""
+    for name in ("models.joblib", "top_features.npy", "medians25.npy",
+                 "scaler_mean25.npy", "scaler_std25.npy"):
+        assert (MODEL_DIRS[layer] / name).is_file(), f"{layer} is missing {name}"

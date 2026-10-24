@@ -54,9 +54,12 @@ block is enforced; it says nothing about *which* algorithm scores it.
 
 | Layer | Switch | Model directory | Currently |
 |-------|--------|-----------------|-----------|
-| top | br-sw1 | `build/worker/models/top` | XGBoost classifier |
-| inter | br-sw2 | `build/worker/models/inter` | **rule-based placeholder** |
-| bottom | br-sw3 | `build/worker/models/bottom` | **rule-based placeholder** |
+| top | br-sw1 | `build/worker/models/top` | XGBoost classifier, 25 features |
+| inter | br-sw2 | `build/worker/models/inter` | XGBoost classifier, 25 features |
+| bottom | br-sw3 | `build/worker/models/bottom` | XGBoost classifier, 25 features |
+
+Each layer has its own feature set, selected during its own training run, so the
+three directories do not hold the same 25 names.
 
 XGBoost is simply what the top layer ships with today, not a requirement. Any
 fitted estimator that exposes `predict_proba`, `decision_function` or `predict`
@@ -67,12 +70,12 @@ switching one is a file swap, not a code change. Each worker logs the algorithm
 it loaded at startup, and the class name reaches the alert as, for example,
 `top-randomforestclassifier`.
 
-The intermediate and bottom layers currently run `HeuristicDetector`, a weighted
-combination of flow statistics — SYN ratio, packet rate and packet size for the
-intermediate layer; flow duration, byte starvation and request bursts for the
-bottom layer. **These are placeholders, not trained models, and their scores
-must not be read as model output.** Every worker says which it is using at
-startup.
+`HeuristicDetector` remains as the fallback: a weighted combination of flow
+statistics — SYN ratio, packet rate and packet size for the intermediate layer;
+flow duration, byte starvation and request bursts for the bottom layer. A layer
+whose model artifacts are missing drops to it and says so loudly at startup,
+because **a heuristic score is a placeholder and must not be read as model
+output**. `DETECTOR=model` makes a missing model fatal instead.
 
 ### Adding or replacing a model
 
