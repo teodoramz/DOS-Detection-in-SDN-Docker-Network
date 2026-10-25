@@ -370,6 +370,12 @@ blocks, and the next alert reinstalls them. Without it the switch would keep
 rules from the previous run — including ones delivering to veths that no longer
 exist, which traffic keeps refreshing past their idle timeout.
 
+One consequence is visible in the first window after a restart: with the MAC
+tables empty the bridges flood, so each layer's mirrored service port sees the
+other layers' traffic and an attack can be blocked on all three switches at
+once. It settles as soon as the addresses are relearned — a measured run a
+minute later put the top-layer attacker on `0000000000000001` alone.
+
 ## Flow features
 
 Captures become flow records with CICFlowMeter-4.0, vendored under
