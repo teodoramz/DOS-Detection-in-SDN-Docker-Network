@@ -131,6 +131,34 @@ def publish_window(cfg: "CollectorConfig", *, pcap: Path, filename: str,
         Path(pcap).unlink(missing_ok=True)
 
 
+def ensure_bucket(store, bucket: str) -> bool:
+    """Create the bucket when it is absent. True when it had to be created."""
+    if store.bucket_exists(bucket):
+        return False
+    store.make_bucket(bucket)
+    log.info("created bucket %s", bucket)
+    return True
+
+
+def upload_capture(store, cfg: "CollectorConfig", *, pcap, filename: str) -> bool:
+    """Put one capture in the object store, rebuilding the bucket if it is gone.
+
+    A redeployed object store comes back with an empty volume, and a collector
+    that only created its bucket at startup would then fail on every window for
+    as long as it runs.
+    """
+    try:
+        store.fput_object(cfg.minio_bucket, filename, str(pcap))
+        return True
+    except Exception as exc:
+        if "NoSuchBucket" not in str(exc):
+            raise
+        log.warning("bucket %s is gone, recreating it", cfg.minio_bucket)
+        ensure_bucket(store, cfg.minio_bucket)
+        store.fput_object(cfg.minio_bucket, filename, str(pcap))
+        return True
+
+
 def prune_old_captures(cfg: "CollectorConfig", store) -> int:
     """Delete this layer's captures past the retention window.
 
@@ -201,13 +229,10 @@ def main() -> int:
     store = Minio(cfg.minio_endpoint, access_key=cfg.minio_access_key,
                   secret_key=cfg.minio_secret_key, secure=cfg.minio_secure)
 
-    def ensure_bucket():
-        if not store.bucket_exists(cfg.minio_bucket):
-            store.make_bucket(cfg.minio_bucket)
-            log.info("created bucket %s", cfg.minio_bucket)
-        return store
-
-    connect_with_retry(ensure_bucket, what=f"minio at {cfg.minio_endpoint}")
+    connect_with_retry(
+        lambda: ensure_bucket(store, cfg.minio_bucket) or store,
+        what=f"minio at {cfg.minio_endpoint}",
+    )
 
     producer = connect_with_retry(
         lambda: KafkaProducer(
@@ -232,7 +257,7 @@ def main() -> int:
             continue
 
         def publish(cfg, *, pcap, filename, started_iso):
-            store.fput_object(cfg.minio_bucket, filename, str(pcap))
+            upload_capture(store, cfg, pcap=pcap, filename=filename)
             url = store.presigned_get_object(
                 cfg.minio_bucket, filename, expires=timedelta(days=7)
             )

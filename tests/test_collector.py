@@ -130,3 +130,68 @@ def test_retention_failure_never_stops_the_capture_loop():
 def test_retention_defaults_to_a_day():
     cfg = collector.CollectorConfig.from_env({"LAYER": "top"})
     assert cfg.retention_hours == 24
+
+
+class BucketlessStore:
+    """Loses its buckets, the way a redeployed object store with a fresh
+    volume does, and reports it the way MinIO does."""
+
+    def __init__(self, *, exists=False):
+        self.buckets = {"inter-layer"} if exists else set()
+        self.uploaded = []
+        self.made = []
+
+    def bucket_exists(self, bucket):
+        return bucket in self.buckets
+
+    def make_bucket(self, bucket):
+        self.buckets.add(bucket)
+        self.made.append(bucket)
+
+    def fput_object(self, bucket, name, path):
+        if bucket not in self.buckets:
+            raise RuntimeError(
+                "S3 operation failed; code: NoSuchBucket, message: The specified "
+                f"bucket does not exist, bucket_name: {bucket}"
+            )
+        self.uploaded.append((bucket, name))
+
+
+def test_a_lost_bucket_is_recreated_and_the_window_still_lands(tmp_path):
+    cfg = collector.CollectorConfig.from_env({"LAYER": "inter"})
+    store = BucketlessStore(exists=False)
+    pcap = tmp_path / "capture.pcap"
+    pcap.write_bytes(b"x")
+    assert collector.upload_capture(store, cfg, pcap=pcap, filename="capture.pcap")
+    assert store.made == ["inter-layer"], "the bucket was not recreated"
+    assert store.uploaded == [("inter-layer", "capture.pcap")]
+
+
+def test_an_existing_bucket_is_not_recreated(tmp_path):
+    cfg = collector.CollectorConfig.from_env({"LAYER": "inter"})
+    store = BucketlessStore(exists=True)
+    pcap = tmp_path / "capture.pcap"
+    pcap.write_bytes(b"x")
+    assert collector.upload_capture(store, cfg, pcap=pcap, filename="capture.pcap")
+    assert store.made == []
+
+
+def test_an_unrelated_upload_failure_is_not_retried(tmp_path):
+    cfg = collector.CollectorConfig.from_env({"LAYER": "inter"})
+
+    class Broken(BucketlessStore):
+        def __init__(self):
+            super().__init__(exists=True)
+            self.calls = 0
+
+        def fput_object(self, bucket, name, path):
+            self.calls += 1
+            raise RuntimeError("connection reset by peer")
+
+    store = Broken()
+    pcap = tmp_path / "capture.pcap"
+    pcap.write_bytes(b"x")
+    with pytest.raises(RuntimeError):
+        collector.upload_capture(store, cfg, pcap=pcap, filename="capture.pcap")
+    assert store.calls == 1, "a transport error must not trigger a bucket rebuild"
+    assert store.made == []
