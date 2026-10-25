@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
 from ddos_ryu.blocking import (
-    BlockDecision, BlockTable, build_block_flow, build_forget_flow, decide, learn_mac,
+    BlockDecision, BlockTable, build_block_flow, build_clear_flows, build_forget_flow,
+    decide, learn_mac,
 )
 from ddos_ryu.config import BlockerConfig
 
@@ -205,6 +206,18 @@ def test_forget_flow_deletes_by_destination_only():
     mod = build_forget_flow(FakeDatapath(), "aa:bb:cc:dd:ee:ff")["flowmod"]
     assert mod["command"] == FakeOfProto.OFPFC_DELETE
     assert mod["match"] == {"match": {"eth_dst": "aa:bb:cc:dd:ee:ff"}}
+    assert mod["out_port"] == FakeOfProto.OFPP_ANY
+    assert mod["out_group"] == FakeOfProto.OFPG_ANY
+    assert mod.get("table_id", 0) == 0
+
+
+def test_clearing_a_switch_removes_everything_in_the_table():
+    """A controller restart leaves its own tables empty while the switch keeps
+    rules pointing at ports that may no longer exist, and traffic matching them
+    refreshes their timeout forever. The two can only agree from a clean slate."""
+    mod = build_clear_flows(FakeDatapath())["flowmod"]
+    assert mod["command"] == FakeOfProto.OFPFC_DELETE
+    assert mod["match"] == {"match": {}}, "the match must be a wildcard"
     assert mod["out_port"] == FakeOfProto.OFPP_ANY
     assert mod["out_group"] == FakeOfProto.OFPG_ANY
     assert mod.get("table_id", 0) == 0

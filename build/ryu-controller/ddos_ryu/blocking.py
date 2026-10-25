@@ -145,3 +145,23 @@ def build_forget_flow(datapath, mac: str):
         out_port=ofproto.OFPP_ANY,
         out_group=ofproto.OFPG_ANY,
     )
+
+
+def build_clear_flows(datapath):
+    """A flow_mod that empties table 0.
+
+    Sent when a switch connects. The controller's MAC and block tables live in
+    memory, so after a restart it knows nothing while the switch still holds
+    rules from the previous run — including ones that deliver to ports that
+    have since disappeared.
+    """
+    parser = datapath.ofproto_parser
+    ofproto = datapath.ofproto
+    return parser.OFPFlowMod(
+        datapath=datapath,
+        command=ofproto.OFPFC_DELETE,
+        table_id=0,
+        match=parser.OFPMatch(),
+        out_port=ofproto.OFPP_ANY,
+        out_group=ofproto.OFPG_ANY,
+    )

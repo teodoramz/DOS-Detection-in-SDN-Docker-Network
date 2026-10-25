@@ -71,3 +71,13 @@ def test_the_handler_retracts_flows_when_a_mac_moves():
     body = ast.dump(handler)
     assert "learn_mac" in body
     assert "build_forget_flow" in body
+
+
+def test_a_connecting_switch_is_cleared_before_the_table_miss_is_installed():
+    handler = next(
+        n for n in ast.walk(tree())
+        if isinstance(n, ast.FunctionDef) and n.name == "switch_features_handler"
+    )
+    body = ast.dump(handler)
+    assert "build_clear_flows" in body
+    assert body.index("build_clear_flows") < body.index("TABLE_MISS_PRIORITY")

@@ -25,6 +25,7 @@ from .blocking import (
     TABLE_MISS_PRIORITY,
     BlockTable,
     build_block_flow,
+    build_clear_flows,
     build_forget_flow,
     decide,
     learn_mac,
@@ -63,6 +64,12 @@ class DDoSBlocker(app_manager.RyuApp):
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
         self.datapaths[datapath.id] = datapath
+
+        # This controller's MAC and block tables are in memory, so on a restart
+        # it knows nothing while the switch still holds the previous run's
+        # rules, some of them delivering to ports that no longer exist.
+        datapath.send_msg(build_clear_flows(datapath))
+        self.mac_to_port.pop(datapath.id, None)
 
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
         self._add_flow(datapath, TABLE_MISS_PRIORITY, parser.OFPMatch(), actions)

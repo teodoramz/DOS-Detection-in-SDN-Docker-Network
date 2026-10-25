@@ -364,6 +364,12 @@ All of it reaches the containers through the generated `.env`.
 The whitelist matters: an alert naming a gateway or a collector would partition
 the testbed, so those addresses are refused and logged.
 
+The controller keeps its MAC and block tables in memory, so it clears each
+switch's table when that switch connects. A restart therefore drops the active
+blocks, and the next alert reinstalls them. Without it the switch would keep
+rules from the previous run — including ones delivering to veths that no longer
+exist, which traffic keeps refreshing past their idle timeout.
+
 ## Flow features
 
 Captures become flow records with CICFlowMeter-4.0, vendored under
