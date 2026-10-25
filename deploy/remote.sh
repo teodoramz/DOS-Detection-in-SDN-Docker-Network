@@ -128,7 +128,21 @@ printf '  host1 %s, host2 %s\n' "$HOST1_IP" "$HOST2_IP"
 
 say "Copying the project to both hosts"
 BUNDLE=$(mktemp /tmp/ddos-bundle-XXXXXX.tar.gz)
-trap 'rm -f "$BUNDLE"' EXIT
+MARKER=$(mktemp -d /tmp/ddos-marker-XXXXXX)
+trap 'rm -f "$BUNDLE"; rm -rf "$MARKER"' EXIT
+
+# What lands on the hosts is this working tree, not a checkout of it, so record
+# where it came from. A host that was cloned once would otherwise show the newer
+# files as local modifications, and `git checkout .` there would revert the
+# running system to whatever its own HEAD happens to be.
+DEPLOYED_REVISION=$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)
+DEPLOYED_DIRTY=$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')
+{
+  printf 'revision: %s\n' "$DEPLOYED_REVISION"
+  printf 'uncommitted_files: %s\n' "$DEPLOYED_DIRTY"
+  printf 'deployed_at: %s\n' "$(date -Is)"
+  printf 'deployed_from: %s\n' "$(hostname)"
+} > "$MARKER/.deployed"
 # Tracked files only. .env holds the object-store credentials and is generated
 # on each host anyway, and git already ignores the captures and the datasets.
 if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
@@ -142,13 +156,20 @@ fi
 for target in "$HOST1" "$HOST2"; do
   on "$target" "rm -rf ~/${REMOTE_DIR}.incoming && mkdir -p ~/${REMOTE_DIR}.incoming"
   "${SCP[@]}" "$BUNDLE" "$target:~/${REMOTE_DIR}.incoming/bundle.tar.gz"
+  "${SCP[@]}" "$MARKER/.deployed" "$target:~/${REMOTE_DIR}.incoming/.deployed"
   on "$target" "tar xzf ~/${REMOTE_DIR}.incoming/bundle.tar.gz -C ~/${REMOTE_DIR}.incoming \
                 && mkdir -p ~/${REMOTE_DIR} \
                 && cp -a ~/${REMOTE_DIR}.incoming/. ~/${REMOTE_DIR}/ \
                 && rm -rf ~/${REMOTE_DIR}.incoming \
                 && chmod +x ~/${REMOTE_DIR}/deploy/*.sh ~/${REMOTE_DIR}/host*/*.sh \
                            ~/${REMOTE_DIR}/utils/*.sh ~/${REMOTE_DIR}/attacks/*.sh"
-  printf '  %s:~/%s\n' "$target" "$REMOTE_DIR"
+  printf '  %s:~/%s at %s\n' "$target" "$REMOTE_DIR" "$DEPLOYED_REVISION"
+  head=$(on "$target" "git -C ~/${REMOTE_DIR} rev-parse --short HEAD 2>/dev/null" || true)
+  if [ -n "$head" ] && [ "$head" != "$DEPLOYED_REVISION" ]; then
+    warn "~/${REMOTE_DIR} on $(address_of "$target") is a clone at ${head}, and the files"
+    warn "it now holds are ${DEPLOYED_REVISION}. Running 'git checkout .' there would"
+    warn "revert the running system. See ~/${REMOTE_DIR}/.deployed"
+  fi
 done
 
 if [ -z "$SKIP_DEPS" ]; then

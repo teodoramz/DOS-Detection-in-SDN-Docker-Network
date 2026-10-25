@@ -151,3 +151,17 @@ def test_the_script_can_run_from_another_directory(tmp_path):
         cwd=tmp_path, capture_output=True, text=True, timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_the_deployed_revision_is_recorded_on_the_host():
+    """The bundle is a working tree, not a checkout, so a host that was once
+    cloned shows the newer files as local modifications — and `git checkout .`
+    there would silently revert the running system to older code."""
+    text = SCRIPT.read_text()
+    assert "DEPLOYED_REVISION" in text or ".deployed" in text
+    assert "rev-parse" in text
+
+
+def test_it_warns_when_the_host_checkout_no_longer_matches_its_git_state():
+    text = SCRIPT.read_text()
+    assert "git checkout" in text, "the hazard has to be named where it is seen"

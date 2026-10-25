@@ -233,6 +233,12 @@ Nothing else needs editing — the two addresses are the only machine-specific
 values, and everything else (the GRE endpoints, bridge addresses, container
 environments) is derived from them.
 
+What lands on each host is the working tree you deployed from, not a checkout
+of it, and `~/<dir>/.deployed` records which revision that was. If the host also
+holds a clone of this repository, the deployed files will show up there as local
+modifications and `git checkout .` would revert the running system — the script
+warns when it sees that.
+
 To drive the hosts by hand instead, host2 goes first, so Kafka and the workers
 exist before host1 starts publishing:
 
