@@ -66,15 +66,23 @@ model when its artifacts are present), `model` (refuse to start without one) or
 `heuristic`. All three run their model. What each one actually measures, on
 flows captured from this testbed:
 
-| Layer | Attack flows ≥ 0.5 | Benign flows ≥ 0.5 | Verdict |
-|-------|--------------------|--------------------|---------|
-| top | 545 / 545 | **185 / 185** | fires on the attack and on benign DNS alike — it separates nothing |
-| inter | 48 / 51 (p = 0.5573) | 0 / 210 (p = 0.0113) | clean separation, thin margin; alerts on the attacker only |
-| bottom | 118 / 15,486 | 0 / 441 | benign stays under 0.43; the spoofed attacker clears the threshold on all 48 of its flows |
+| Layer | Attack flows ≥ 0.5 | Benign flows ≥ 0.5 | Benign sources alerted | Verdict |
+|-------|--------------------|--------------------|------------------------|---------|
+| top | 545 / 545 | **96 / 96** | **1 of 2** | fires on the attack and on benign DNS alike — it separates nothing |
+| inter | 48 / 51 (p = 0.5573) | 0 / 352 (p = 0.0007) | 0 of 3 | clean separation, thin margin; alerts on the attacker only |
+| bottom | 118 / 15,486 | 0 / 158 | 0 of 1 | clean on benign; the spoofed attacker clears the threshold on all 48 of its flows |
 
 Measured on committed flows — `training/data/testbed_<layer>.csv.gz`, with the
 method and the full table in
 [`training/reports/testbed_baseline.md`](training/reports/testbed_baseline.md).
+The benign class is low-rate legitimate traffic generated from inside the
+topology; the attack class is each layer's own scenario.
+
+The placeholders are not a safe fallback, which the same measurement shows: at
+the intermediate layer `HeuristicDetector` crosses the threshold on 259 of 352
+benign flows and would alert on every legitimate source in the set, where the
+model alerts on none of them. The top layer has no placeholder at all —
+`HeuristicDetector` covers only the intermediate and bottom layers.
 
 An earlier measurement had inter at 0.0002 and bottom naming only the victim,
 and the difference was the attack, not the models: `hping3 --flood` walks the
@@ -82,10 +90,12 @@ source port space, leaving one packet per 5-tuple at a fraction of a packet per
 second, and CICFlowMeter discards single-packet flows. `launch_spoofed_flows`
 now holds 16 source ports open with 512-byte payloads at hping3's own rate.
 
-The top layer's model is the weak one: it scores benign DNS at 1.0000 too. It
-looks correct here only because every legitimate address in the testbed is
+The top layer's model is the weak one: every benign flow scores at or above
+0.9987, so it alerts on `10.0.2.2` for doing 87 DNS lookups over five minutes.
+It looks correct here only because every legitimate address in the testbed is
 whitelisted, so the attacker is the only source that can produce a block. In a
 network where clients were not whitelisted it would block them as well.
+Retraining that model on local traffic is the highest-value change left.
 
 XGBoost is simply what the top layer ships with today, not a requirement. Any
 fitted estimator that exposes `predict_proba`, `decision_function` or `predict`
