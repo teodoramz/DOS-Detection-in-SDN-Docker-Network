@@ -56,3 +56,19 @@ remove_stale_containers() {
     docker rm -f "$name" >/dev/null 2>&1 || true
   done
 }
+
+# The management addresses are internal to the testbed and are referenced by
+# every topology script and by the block whitelist, so only the two host
+# addresses move when the testbed does.
+render_hosts_csv() {
+  local host1_ip=$1 host2_ip=$2 out=$3
+  local pattern='^[0-9]{1,3}(\.[0-9]{1,3}){3}$'
+  [[ $host1_ip =~ $pattern ]] || die "host1 address is not an IPv4 address: $host1_ip"
+  [[ $host2_ip =~ $pattern ]] || die "host2 address is not an IPv4 address: $host2_ip"
+  mkdir -p "$(dirname "$out")"
+  cat > "$out" <<CSV
+Name,Ip address default interface,Mgmt IP
+host1,${host1_ip},10.255.255.254/24
+host2,${host2_ip},10.255.255.253/24
+CSV
+}

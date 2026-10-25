@@ -215,7 +215,26 @@ CSVs, so the documented inventory cannot drift from the deployed one.
 
 ## Bring-up
 
-Host2 first, so Kafka and the workers exist before host1 starts publishing.
+One command from your workstation, given two fresh machines:
+
+```bash
+DDOS_SSH_PASSWORD=... ./deploy/remote.sh \
+    --host1 user@first-machine --host2 user@second-machine
+```
+
+It checks both hosts are reachable, writes the host inventory from those two
+addresses, copies the project to each, installs the packages, brings up host2
+and then host1, and prints a health check. `--ask` prompts for the password
+instead of reading the environment; with neither, it authenticates with ssh
+keys. `--clean` tears down containers and OVS state first, `--skip-deps` leaves
+the packages alone, and re-running it is safe.
+
+Nothing else needs editing — the two addresses are the only machine-specific
+values, and everything else (the GRE endpoints, bridge addresses, container
+environments) is derived from them.
+
+To drive the hosts by hand instead, host2 goes first, so Kafka and the workers
+exist before host1 starts publishing:
 
 ```bash
 # on host2
@@ -379,7 +398,7 @@ build/         one directory per image
   collector/   packet capture, one image parameterised by layer
   worker/      the detection pipeline, the models and the flow converter
   ryu-controller/  the learning switch and DDoS blocker
-deploy/        per-host bring-up
+deploy/        per-host bring-up and the one-command remote deploy
 host1/ host2/  numbered topology scripts
 startup/       CSV inventory, env template, generators
 tests/         pytest suite
