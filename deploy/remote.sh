@@ -13,11 +13,18 @@
 
 set -euo pipefail
 
-source "$(dirname "$0")/lib.sh"
+REPO_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+[ -f "$REPO_ROOT/deploy/remote.sh" ] || {
+  printf 'cannot locate the project root from %s\n' "$0" >&2
+  exit 1
+}
+
+source "$REPO_ROOT/deploy/lib.sh"
 
 HOST1=""
 HOST2=""
 REMOTE_DIR="ddos"
+KNOWN_HOSTS="${DDOS_KNOWN_HOSTS:-$HOME/.ssh/known_hosts}"
 CLEAN=""
 SKIP_DEPS=""
 ASK=""
@@ -30,6 +37,10 @@ Usage: $0 --host1 user@address --host2 user@address [options]
   --host2 user@address   the machine that runs Kafka, MinIO and the workers
   --dir NAME             directory to deploy into, under the remote home
                          (default: ${REMOTE_DIR})
+  --known-hosts FILE     where host keys are pinned
+                         (default: ~/.ssh/known_hosts). A re-imaged machine
+                         presents a new key and is refused until you remove
+                         its old entry or point this at another file.
   --clean                tear down containers and OVS state first
   --skip-deps            do not install packages on the hosts
   --ask                  prompt for the password instead of reading the
@@ -49,6 +60,7 @@ while [ $# -gt 0 ]; do
     --host1) HOST1="${2:-}"; shift 2 ;;
     --host2) HOST2="${2:-}"; shift 2 ;;
     --dir) REMOTE_DIR="${2:-}"; shift 2 ;;
+    --known-hosts) KNOWN_HOSTS="${2:-}"; shift 2 ;;
     --clean) CLEAN="--clean"; shift ;;
     --skip-deps) SKIP_DEPS=1; shift ;;
     --ask) ASK=1; shift ;;
@@ -67,7 +79,11 @@ fi
 SSH_PASSWORD="${DDOS_SSH_PASSWORD:-}"
 SUDO_PASSWORD="${DDOS_SUDO_PASSWORD:-$SSH_PASSWORD}"
 
-SSH_OPTS=(-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+# accept-new pins a key the first time and refuses a changed one. Anything
+# weaker would hand the password below to whoever answers the address.
+mkdir -p "$(dirname "$KNOWN_HOSTS")"
+SSH_OPTS=(-o StrictHostKeyChecking=accept-new
+          -o "UserKnownHostsFile=$KNOWN_HOSTS"
           -o LogLevel=ERROR -o ConnectTimeout=15)
 
 if [ -n "$SSH_PASSWORD" ]; then
@@ -107,15 +123,22 @@ for target in "$HOST1" "$HOST2"; do
 done
 
 say "Writing the host inventory"
-render_hosts_csv "$HOST1_IP" "$HOST2_IP" startup/files/input/hosts.csv
+render_hosts_csv "$HOST1_IP" "$HOST2_IP" "$REPO_ROOT/startup/files/input/hosts.csv"
 printf '  host1 %s, host2 %s\n' "$HOST1_IP" "$HOST2_IP"
 
 say "Copying the project to both hosts"
 BUNDLE=$(mktemp /tmp/ddos-bundle-XXXXXX.tar.gz)
 trap 'rm -f "$BUNDLE"' EXIT
-tar czf "$BUNDLE" \
-  --exclude=.git --exclude=volumes --exclude=__pycache__ --exclude=.pytest_cache \
-  --exclude='*.pcap' --exclude='*.pdf' --exclude='*.zip' .
+# Tracked files only. .env holds the object-store credentials and is generated
+# on each host anyway, and git already ignores the captures and the datasets.
+if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  git -C "$REPO_ROOT" ls-files -z \
+    | tar czf "$BUNDLE" -C "$REPO_ROOT" --null --no-recursion -T -
+else
+  tar czf "$BUNDLE" -C "$REPO_ROOT" \
+    --exclude=.git --exclude=.env --exclude=volumes --exclude=__pycache__ \
+    --exclude=.pytest_cache --exclude='*.pcap' --exclude='*.pdf' --exclude='*.zip' .
+fi
 for target in "$HOST1" "$HOST2"; do
   on "$target" "rm -rf ~/${REMOTE_DIR}.incoming && mkdir -p ~/${REMOTE_DIR}.incoming"
   "${SCP[@]}" "$BUNDLE" "$target:~/${REMOTE_DIR}.incoming/bundle.tar.gz"

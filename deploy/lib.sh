@@ -1,6 +1,10 @@
 #!/bin/bash
 # Shared helpers for the deployment scripts.
 
+# Compose names a project after the directory it is run from, so a renamed or
+# moved checkout would fight its own containers for their names. Pin it.
+export COMPOSE_PROJECT_NAME="ddos"
+
 say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
 warn() { printf '\033[33m[warn]\033[0m %s\n' "$*"; }
 die()  { printf '\033[31m[fail]\033[0m %s\n' "$*" >&2; exit 1; }

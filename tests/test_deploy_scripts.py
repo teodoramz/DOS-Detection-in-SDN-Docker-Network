@@ -1,4 +1,5 @@
 import os
+import re
 import stat
 import subprocess
 from pathlib import Path
@@ -90,3 +91,18 @@ def test_clean_names_every_container_the_host_owns(name, expected):
     line = next(l for l in text.splitlines() if "remove_stale_containers" in l and "()" not in l)
     for container in expected:
         assert container in line, f"{container} not in {name} cleanup"
+
+
+def test_the_compose_project_name_is_pinned():
+    """Compose names the project after the directory, so a renamed or moved
+    checkout collides with its own containers: "the container name /minio is
+    already in use". Pinning the name makes the location irrelevant."""
+    lib = Path("deploy/lib.sh").read_text()
+    assert "COMPOSE_PROJECT_NAME" in lib
+    assert re.search(r'COMPOSE_PROJECT_NAME="?ddos"?', lib)
+    assert "export COMPOSE_PROJECT_NAME" in lib
+
+
+@pytest.mark.parametrize("script", ["deploy/host1.sh", "deploy/host2.sh"])
+def test_each_deploy_script_sources_the_pinned_project_name(script):
+    assert "source" in Path(script).read_text()

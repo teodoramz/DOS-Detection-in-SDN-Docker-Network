@@ -49,8 +49,8 @@ def test_no_password_is_ever_passed_as_an_argument():
     box; -e takes it from the environment instead."""
     text = SCRIPT.read_text()
     assert "sshpass -p" not in text
-    assert "-p \"$" not in text
-    assert "SSHPASS" in text
+    assert not re.search(r"sshpass[^\n|]*-p\s", text)
+    assert "SSHPASS" in text, "the password must travel through the environment"
 
 
 def test_host2_is_brought_up_before_host1():
@@ -105,3 +105,49 @@ def test_render_hosts_csv_rejects_a_non_address(tmp_path):
 def test_the_readme_documents_the_one_command_path():
     readme = Path("README.md").read_text()
     assert "deploy/remote.sh" in readme
+
+
+def test_host_keys_are_verified():
+    """The script sends a password over this connection. Without host-key
+    pinning, the first contact can be intercepted and a swapped key is never
+    noticed, so accept-new (pin on first use, refuse changes) is the floor."""
+    text = SCRIPT.read_text()
+    assert "StrictHostKeyChecking=no" not in text
+    assert "UserKnownHostsFile=/dev/null" not in text
+    assert "StrictHostKeyChecking=accept-new" in text
+
+
+def test_a_known_hosts_file_can_be_supplied():
+    """Re-imaged machines legitimately change keys; that has to be an explicit
+    choice, not the default."""
+    text = SCRIPT.read_text()
+    assert "--known-hosts" in text
+
+
+def test_the_known_hosts_option_appears_in_the_help():
+    result = subprocess.run(["bash", str(SCRIPT), "--help"],
+                            capture_output=True, text=True, timeout=30)
+    assert "--known-hosts" in result.stdout
+
+
+def test_the_bundle_comes_from_the_repository_not_the_working_directory():
+    """`tar .` ships whatever directory the operator happened to be in."""
+    text = SCRIPT.read_text()
+    assert "REPO_ROOT" in text
+    assert re.search(r'tar\s+[^\n]*-C\s+"\$REPO_ROOT"', text) or "ls-files" in text
+
+
+def test_generated_secrets_are_not_shipped():
+    """.env carries the MinIO credentials and is regenerated on each host by
+    generate_env, so it has no business crossing the network."""
+    text = SCRIPT.read_text()
+    assert "ls-files" in text or "--exclude=.env" in text
+
+
+def test_the_script_can_run_from_another_directory(tmp_path):
+    """A deploy tool that only works from the repository root is a trap."""
+    result = subprocess.run(
+        ["bash", str(Path(SCRIPT).resolve()), "--help"],
+        cwd=tmp_path, capture_output=True, text=True, timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
