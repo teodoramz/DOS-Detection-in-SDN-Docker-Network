@@ -110,3 +110,38 @@ def build_block_flow(datapath, decision: BlockDecision, cfg):
         hard_timeout=cfg.block_timeout,
         command=ofproto.OFPFC_ADD,
     )
+
+
+def learn_mac(table: dict, dpid, mac: str, port) -> object:
+    """Record which port a MAC was seen on. Returns the port it left, or None.
+
+    A container keeps its MAC when it is recreated but comes back on a new
+    veth. The flows that send that MAC to the old port keep matching traffic,
+    which refreshes their idle timeout, so they never expire and every packet
+    for that host is forwarded into a port that no longer exists.
+    """
+    ports = table.setdefault(dpid, {})
+    previous = ports.get(mac)
+    ports[mac] = port
+    if previous is None or previous == port:
+        return None
+    return previous
+
+
+def build_forget_flow(datapath, mac: str):
+    """A flow_mod that retracts every learned rule delivering to ``mac``.
+
+    Matching on the destination alone is deliberate: the stale rules carry an
+    in_port and a source as well, and a delete matches entries at least as
+    specific as the request. Drop rules match on ipv4_src and survive.
+    """
+    parser = datapath.ofproto_parser
+    ofproto = datapath.ofproto
+    return parser.OFPFlowMod(
+        datapath=datapath,
+        command=ofproto.OFPFC_DELETE,
+        table_id=0,
+        match=parser.OFPMatch(eth_dst=mac),
+        out_port=ofproto.OFPP_ANY,
+        out_group=ofproto.OFPG_ANY,
+    )

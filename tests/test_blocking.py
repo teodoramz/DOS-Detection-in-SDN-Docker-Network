@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta, timezone
 
-from ddos_ryu.blocking import BlockDecision, BlockTable, build_block_flow, decide
+from ddos_ryu.blocking import (
+    BlockDecision, BlockTable, build_block_flow, build_forget_flow, decide, learn_mac,
+)
 from ddos_ryu.config import BlockerConfig
 
 NOW = datetime(2026, 9, 27, 15, 30, 0, tzinfo=timezone.utc)
@@ -114,6 +116,7 @@ def test_forget_an_absent_entry_reports_false():
 
 class FakeOfProto:
     OFPFC_ADD = 0
+    OFPFC_DELETE = 3
     OFPIT_APPLY_ACTIONS = 4
     OFPP_ANY = 0xFFFFFFFF
     OFPG_ANY = 0xFFFFFFFF
@@ -166,3 +169,42 @@ def test_block_priority_is_above_the_learning_switch():
     from ddos_ryu.blocking import LEARNED_PRIORITY, TABLE_MISS_PRIORITY
 
     assert CFG.block_priority > LEARNED_PRIORITY > TABLE_MISS_PRIORITY
+
+
+def test_a_mac_seen_for_the_first_time_has_not_moved():
+    table = {}
+    assert learn_mac(table, 1, "aa:bb:cc:dd:ee:ff", 3) is None
+    assert table[1]["aa:bb:cc:dd:ee:ff"] == 3
+
+
+def test_a_mac_seen_again_on_the_same_port_has_not_moved():
+    table = {}
+    learn_mac(table, 1, "aa:bb:cc:dd:ee:ff", 3)
+    assert learn_mac(table, 1, "aa:bb:cc:dd:ee:ff", 3) is None
+
+
+def test_a_mac_that_changes_port_reports_where_it_was():
+    """A container keeps its MAC when it is recreated but lands on a new veth,
+    and the flows pointing at the old port survive their idle timeout because
+    traffic keeps refreshing them. They have to be retracted."""
+    table = {}
+    learn_mac(table, 1, "aa:bb:cc:dd:ee:ff", 7)
+    assert learn_mac(table, 1, "aa:bb:cc:dd:ee:ff", 10) == 7
+    assert table[1]["aa:bb:cc:dd:ee:ff"] == 10
+
+
+def test_each_switch_learns_independently():
+    table = {}
+    learn_mac(table, 1, "aa:bb:cc:dd:ee:ff", 7)
+    assert learn_mac(table, 2, "aa:bb:cc:dd:ee:ff", 9) is None
+
+
+def test_forget_flow_deletes_by_destination_only():
+    """Matching on the destination alone catches every learned rule that sends
+    this MAC anywhere; a drop rule matches on ipv4_src and is left alone."""
+    mod = build_forget_flow(FakeDatapath(), "aa:bb:cc:dd:ee:ff")["flowmod"]
+    assert mod["command"] == FakeOfProto.OFPFC_DELETE
+    assert mod["match"] == {"match": {"eth_dst": "aa:bb:cc:dd:ee:ff"}}
+    assert mod["out_port"] == FakeOfProto.OFPP_ANY
+    assert mod["out_group"] == FakeOfProto.OFPG_ANY
+    assert mod.get("table_id", 0) == 0

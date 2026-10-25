@@ -56,3 +56,18 @@ def test_dockerfile_runs_ofctl_rest_alongside_the_blocker():
     dockerfile = Path("build/ryu-controller/Dockerfile").read_text()
     assert "ryu.app.ofctl_rest" in dockerfile
     assert "ddos_blocker" in dockerfile
+
+
+def test_the_handler_retracts_flows_when_a_mac_moves():
+    """Learning the new port is not enough: the rules pointing at the old one
+    keep matching and never time out."""
+    source = SOURCE.read_text()
+    assert "learn_mac" in source
+    assert "build_forget_flow" in source
+    handler = next(
+        n for n in ast.walk(tree())
+        if isinstance(n, ast.FunctionDef) and n.name == "packet_in_handler"
+    )
+    body = ast.dump(handler)
+    assert "learn_mac" in body
+    assert "build_forget_flow" in body

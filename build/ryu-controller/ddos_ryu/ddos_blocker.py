@@ -25,7 +25,9 @@ from .blocking import (
     TABLE_MISS_PRIORITY,
     BlockTable,
     build_block_flow,
+    build_forget_flow,
     decide,
+    learn_mac,
 )
 from .config import BlockerConfig
 
@@ -87,7 +89,12 @@ class DDoSBlocker(app_manager.RyuApp):
         if eth.ethertype == ether_types.ETH_TYPE_LLDP:
             return
 
-        self.mac_to_port.setdefault(datapath.id, {})[eth.src] = in_port
+        moved_from = learn_mac(self.mac_to_port, datapath.id, eth.src, in_port)
+        if moved_from is not None:
+            self.logger.info("%s moved from port %s to %s, retracting its flows",
+                             eth.src, moved_from, in_port)
+            datapath.send_msg(build_forget_flow(datapath, eth.src))
+
         out_port = self.mac_to_port[datapath.id].get(eth.dst, ofproto.OFPP_FLOOD)
         actions = [parser.OFPActionOutput(out_port)]
 
