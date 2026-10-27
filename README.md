@@ -115,7 +115,24 @@ output**. `DETECTOR=model` makes a missing model fatal instead.
 
 ### Adding or replacing a model
 
-Put the artifacts in the layer's model directory and restart that worker.
+Put the artifacts in the layer's model directory, then rebuild and restart that
+one worker — the Dockerfile copies `models/` into the image, so a restart alone
+keeps serving the old files:
+
+```bash
+# on host2, where the workers run
+docker compose -f docker-compose-host2.yml up -d --build worker1   # top
+```
+
+Only the last two image layers are rebuilt, so this takes seconds. To try a
+model without rebuilding, copy it into the running container instead:
+
+```bash
+docker cp build/worker/models/top/. worker1:/app/models/top/
+docker restart worker1
+```
+
+That copy is lost on the next `up`, which is what makes it useful for a trial.
 
 **A bare estimator** plus its preprocessing vectors, where the worker imputes,
 orders and scales on the model's behalf:

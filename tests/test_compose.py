@@ -97,3 +97,23 @@ def test_each_worker_chooses_its_detector_from_the_environment(worker, layer):
     without touching the other two."""
     env = HOST2["services"][worker]["environment"]
     assert env["DETECTOR"] == "${WORKER_%s_DETECTOR}" % layer.upper()
+
+
+def test_models_are_baked_into_the_worker_image_not_mounted():
+    """The README tells the reader to rebuild after swapping a model. That is
+    only true while nothing mounts over /app/models."""
+    dockerfile = Path("build/worker/Dockerfile").read_text()
+    assert "COPY models /app/models" in dockerfile
+
+    for name, svc in ALL.items():
+        for volume in svc.get("volumes", []):
+            target = volume.split(":")[1] if isinstance(volume, str) else ""
+            assert not target.startswith("/app/models"), (
+                f"{name} mounts {target}; the rebuild instructions no longer hold"
+            )
+
+
+def test_the_readme_tells_the_reader_to_rebuild_when_swapping_a_model():
+    readme = Path("README.md").read_text()
+    section = readme.split("### Adding or replacing a model", 1)[1][:800]
+    assert "--build" in section, "a restart alone keeps serving the old model"
