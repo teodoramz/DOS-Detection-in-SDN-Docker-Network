@@ -1,5 +1,5 @@
 ryu==4.34
 eventlet==0.30.2
 dnspython==1.16.0
-kafka-python==2.3.2
+kafka-python==3.0.13
 webob==1.8.11
