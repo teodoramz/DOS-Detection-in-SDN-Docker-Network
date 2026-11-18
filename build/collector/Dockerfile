@@ -11,7 +11,7 @@ RUN apt-get update -qq && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-RUN pip install --no-cache-dir minio==7.2.10 kafka-python==2.2.15
+RUN pip install --no-cache-dir minio==7.2.10 kafka-python==2.3.2
 
 COPY collector.py /app/
 COPY entrypoint.sh /usr/local/bin/
