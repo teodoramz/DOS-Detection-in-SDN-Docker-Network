@@ -17,6 +17,7 @@ die() { printf '[fail] %s\n' "$*" >&2; exit 1; }
 protected() {
   case "$1" in
     .env|.deployed*|startup/files/output/*|build/certs/ssl/*|build/proxy/certs/ssl/*|volumes|volumes/*) return 0 ;;
+    .git|.git/*|*/.git|*/.git/*) return 0 ;;
   esac
   return 1
 }
@@ -51,7 +52,7 @@ untracked() {
     [ -n "${keep[$p]:-}" ] && continue
     protected "$p" && continue
     printf '%s\0' "$p"
-  done < <(cd "$dir" && find . \( -type f -o -type l \) -print0)
+  done < <(cd "$dir" && find . -name .git -prune -o \( -type f -o -type l \) -print0)
 }
 
 case "$mode" in

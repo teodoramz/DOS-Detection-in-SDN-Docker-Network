@@ -298,3 +298,35 @@ def test_ignore_rules_come_from_git_and_deletion_goes_through_sudo():
     text = SCRIPT.read_text()
     assert "check-ignore" in text
     assert 'sudo_on "$target" "\\$HOME/${REMOTE_DIR}.incoming/deploy/prune.sh apply' in text
+
+
+def _with_clone(host):
+    for name in (".git/HEAD", ".git/config", ".git/refs/heads/main",
+                 ".git/objects/9b/581e34", "sub/.git/HEAD"):
+        f = host / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("x")
+    return {".git/HEAD", ".git/config", ".git/refs/heads/main",
+            ".git/objects/9b/581e34", "sub/.git/HEAD"}
+
+
+def test_a_first_deploy_into_a_git_clone_leaves_the_repository_alone(tmp_path):
+    """git check-ignore never reports .git as ignored, so a first deploy into
+    a clone would otherwise delete the whole repository."""
+    host, new = _fake_host(tmp_path, previous=False)
+    clone = _with_clone(host)
+    listed = set(_run("candidates", host, new).stdout.split("\0")) - {""}
+    assert not {p for p in listed if p.startswith(".git") or "/.git/" in p}
+    ignored = tmp_path / "ignored"
+    ignored.write_bytes(_nul(["ignored.pcap"]))
+    assert _run("apply", host, new, ignored).returncode == 0
+    assert clone <= _left(host)
+
+
+def test_a_manifest_cannot_remove_git_metadata(tmp_path):
+    host, new = _fake_host(tmp_path, previous=True)
+    clone = _with_clone(host)
+    old = host / ".deployed-files"
+    old.write_bytes(old.read_bytes() + _nul(sorted(clone)))
+    assert _run("apply", host, new).returncode == 0
+    assert clone <= _left(host)
