@@ -180,7 +180,7 @@ def build_matrix(df: pd.DataFrame, spec: FeatureSpec) -> tuple[np.ndarray, list[
     for name in spec.order:
         frame[name] = df[name] if name in df.columns else np.nan
 
-    X = frame.apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float)
+    X = frame.apply(pd.to_numeric, errors="coerce").to_numpy(dtype=float, copy=True)
 
     if X.size:
         # CICFlowMeter writes Infinity when a flow's duration is zero, which
