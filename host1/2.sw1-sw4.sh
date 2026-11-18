@@ -2,16 +2,21 @@
 # Re-runnable: every operation either replaces what is there or is skipped when
 # it already exists.
 
-link_absent() { ! ip link show "$1" >/dev/null 2>&1; }
+source "$(dirname "$0")/../deploy/wire.sh"
+
+for n in 1 2 3 4; do prune_dead_ports br-sw$n docker exec sw$n; done
 
 # sw1
-link_absent veth-sw1-br && ip link add veth-sw1-br type veth peer name veth-br-sw1 || true
+if ! has_if sw1 eth_br0; then
+  sudo ovs-vsctl --if-exists del-port br0 veth-br-sw1
+  ip link del veth-br-sw1 2>/dev/null || true
+  ip link add veth-sw1-br type veth peer name veth-br-sw1
+  ip link set veth-sw1-br netns $(docker inspect -f '{{.State.Pid}}' sw1)
+  docker exec sw1 ip link set veth-sw1-br name eth_br0
+fi
 sudo ovs-vsctl --may-exist add-port br0 veth-br-sw1
 ip link set veth-br-sw1 up
 
-pid=$(docker inspect -f '{{.State.Pid}}' sw1)
-ip link set veth-sw1-br netns $pid
-docker exec sw1 ip link set veth-sw1-br name eth_br0
 docker exec sw1 ip link set eth_br0 up
 docker exec sw1 ip link set eth_br0  mtu 1400 
 
@@ -22,13 +27,16 @@ docker exec sw1 ip link set br-sw1 up
 docker exec sw1 ip link set br-sw1  mtu 1400 
 
 # sw4
-link_absent veth-sw4-br && ip link add veth-sw4-br type veth peer name veth-br-sw4 || true
+if ! has_if sw4 eth_br0; then
+  sudo ovs-vsctl --if-exists del-port br0 veth-br-sw4
+  ip link del veth-br-sw4 2>/dev/null || true
+  ip link add veth-sw4-br type veth peer name veth-br-sw4
+  ip link set veth-sw4-br netns $(docker inspect -f '{{.State.Pid}}' sw4)
+  docker exec sw4 ip link set veth-sw4-br name eth_br0
+fi
 sudo ovs-vsctl --may-exist add-port br0 veth-br-sw4
 ip link set veth-br-sw4 up
 
-pid=$(docker inspect -f '{{.State.Pid}}' sw4)
-ip link set veth-sw4-br netns $pid
-docker exec sw4 ip link set veth-sw4-br name eth_br0
 docker exec sw4 ip link set eth_br0 up
 docker exec sw4 ip link set eth_br0   mtu 1400 
 

@@ -1,0 +1,20 @@
+[Unit]
+Description=Rewire the DDoS testbed on @HOST@ after a boot
+Documentation=file://@DDOS_HOME@/README.md
+After=docker.service openvswitch-switch.service network-online.target
+Wants=docker.service openvswitch-switch.service network-online.target
+ConditionPathExists=@DDOS_HOME@/.env
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=DDOS_DETECTION_HOME=@DDOS_HOME@
+ExecStart=@DDOS_HOME@/deploy/@HOST@.sh --rewire
+Restart=on-failure
+RestartSec=20
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

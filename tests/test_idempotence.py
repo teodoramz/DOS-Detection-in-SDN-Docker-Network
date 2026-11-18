@@ -45,7 +45,7 @@ def test_wiring_creates_links_and_ports_idempotently(path):
     for n, line in enumerate(text.splitlines(), 1):
         stripped = line.strip()
         if stripped.startswith("ip link add "):
-            assert "||" in stripped or "link_absent" in text, f"{path}:{n} {stripped}"
+            assert "||" in stripped or "wired" in text or "has_if" in text, f"{path}:{n} {stripped}"
         if "ovs-vsctl add-port" in stripped:
             assert "--may-exist" in stripped, f"{path}:{n} {stripped}"
 

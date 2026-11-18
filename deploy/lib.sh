@@ -26,6 +26,49 @@ require_tools() {
   modprobe openvswitch 2>/dev/null || warn "could not load the openvswitch module"
 }
 
+# Sets CLEAN, REWIRE and INSTALL_UNIT from the deploy script's arguments.
+# The calling script defines usage().
+parse_deploy_args() {
+  CLEAN=""
+  REWIRE=""
+  INSTALL_UNIT="${DDOS_BOOT_UNIT:-1}"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --clean) CLEAN=1 ;;
+      --rewire) REWIRE=1 ;;
+      --no-boot-unit) INSTALL_UNIT=0 ;;
+      --help|-h) usage; exit 0 ;;
+      *) usage >&2; die "unknown argument: $1" ;;
+    esac
+    shift
+  done
+  if [ -n "$CLEAN" ] && [ -n "$REWIRE" ]; then
+    die "--clean and --rewire do not go together: one rebuilds, the other keeps"
+  fi
+}
+
+# Installs and enables the unit that rewires this host on boot. Repeating it is
+# safe: an unchanged unit is left alone. DDOS_BOOT_UNIT=0 or --no-boot-unit skips
+# it.
+install_boot_unit() {
+  local host=$1 unit=/etc/systemd/system/ddos-testbed.service tmp
+  local template="$DDOS_DETECTION_HOME/deploy/systemd/ddos-testbed.service.in"
+  if [ "${INSTALL_UNIT:-1}" = 0 ]; then
+    warn "not installing the boot unit; this host will not rewire itself after a reboot"
+    return 0
+  fi
+  command -v systemctl >/dev/null || { warn "no systemd here, skipping the boot unit"; return 0; }
+  say "Installing the boot unit"
+  tmp=$(mktemp)
+  sed -e "s|@DDOS_HOME@|$DDOS_DETECTION_HOME|g" -e "s|@HOST@|$host|g" "$template" > "$tmp"
+  if ! cmp -s "$tmp" "$unit"; then
+    install -m 644 "$tmp" "$unit"
+    systemctl daemon-reload
+  fi
+  rm -f "$tmp"
+  systemctl enable ddos-testbed.service
+}
+
 generate_env() {
   say "Generating .env from the CSV inventory"
   python3 "$DDOS_DETECTION_HOME/startup/scripts/update_env.py"
@@ -53,6 +96,17 @@ wait_for_container() {
     sleep 1
   done
   die "container $name never stayed up: $(docker logs --tail 3 "$name" 2>&1 | tail -1)"
+}
+
+# A switch container is "running" a moment before its OVS database answers.
+wait_for_ovs() {
+  for name in "$@"; do
+    for _ in $(seq 30); do
+      docker exec "$name" ovs-vsctl --timeout=2 show >/dev/null 2>&1 && continue 2
+      sleep 1
+    done
+    die "openvswitch in $name never answered"
+  done
 }
 
 remove_stale_containers() {

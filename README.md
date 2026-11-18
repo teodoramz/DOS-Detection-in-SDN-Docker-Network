@@ -244,7 +244,8 @@ addresses, copies the project to each, installs the packages, brings up host2
 and then host1, and prints a health check. `--ask` prompts for the password
 instead of reading the environment; with neither, it authenticates with ssh
 keys. `--clean` tears down containers and OVS state first, `--skip-deps` leaves
-the packages alone, and re-running it is safe.
+the packages alone, `--no-boot-unit` skips the reboot unit described below, and
+re-running it is safe.
 
 Nothing else needs editing — the two addresses are the only machine-specific
 values, and everything else (the GRE endpoints, bridge addresses, container
@@ -273,7 +274,36 @@ containers, runs the numbered topology scripts in order, and prints a health
 check.
 
 The numbered scripts in `host1/` and `host2/` still run standalone if you prefer
-to step through the topology by hand.
+to step through the topology by hand. They can be re-run on a host that is
+already wired, half wired or just rebooted: a veth is created only when its
+containers do not hold it yet, and OVS ports whose device has gone are dropped
+and re-added.
+
+### After a reboot
+
+The veths live in the containers' network namespaces and die with them, so a
+reboot leaves every container running with no network, and the switches, which
+have no restart policy, exited. `docker ps` looks healthy; nothing forwards.
+
+Each deploy therefore installs `ddos-testbed.service` (from
+`deploy/systemd/`, with the project path filled in), which runs
+`deploy/hostN.sh --rewire` once Docker and Open vSwitch are up. `--rewire`
+starts the existing containers, switches included, without building anything
+or touching `.env` or the certificates, then redoes the wiring and prints the
+health check. The two hosts do not wait for each other: the GRE tunnel is
+stateless, and the collectors, workers and Ryu retry Kafka and MinIO until
+host2 answers.
+
+```bash
+systemctl status ddos-testbed          # active (exited) once wired
+journalctl -u ddos-testbed -b          # the wiring log for this boot
+sudo DDOS_DETECTION_HOME=$PWD ./deploy/host1.sh --rewire    # the same by hand
+```
+
+The switches are left without `restart:` on purpose. One that restarted alone
+would come back empty and look fine; left exited, it is visible until the unit
+starts it and wires it. `--no-boot-unit` (or `DDOS_BOOT_UNIT=0`) deploys without
+the unit; `sudo systemctl disable ddos-testbed` removes it from the boot.
 
 ## Verifying
 
@@ -433,7 +463,8 @@ build/         one directory per image
   collector/   packet capture, one image parameterised by layer
   worker/      the detection pipeline, the models and the flow converter
   ryu-controller/  the learning switch and DDoS blocker
-deploy/        per-host bring-up and the one-command remote deploy
+deploy/        per-host bring-up, the one-command remote deploy and the
+               boot unit that rewires a host after a reboot
 host1/ host2/  numbered topology scripts
 startup/       CSV inventory, env template, generators
 tests/         pytest suite

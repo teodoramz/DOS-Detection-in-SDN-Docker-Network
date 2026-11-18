@@ -10,6 +10,8 @@
 #   DDOS_SUDO_PASSWORD  sudo password on the hosts; defaults to the ssh one
 #
 # Re-runnable. The hosts keep their data and containers unless --clean is given.
+# Each host also gets a systemd unit that rewires it after a reboot; see
+# --no-boot-unit.
 
 set -euo pipefail
 
@@ -28,6 +30,7 @@ KNOWN_HOSTS="${DDOS_KNOWN_HOSTS:-$HOME/.ssh/known_hosts}"
 CLEAN=""
 SKIP_DEPS=""
 ASK=""
+BOOT_UNIT=""
 
 usage() {
   cat <<USAGE
@@ -43,6 +46,8 @@ Usage: $0 --host1 user@address --host2 user@address [options]
                          its old entry or point this at another file.
   --clean                tear down containers and OVS state first
   --skip-deps            do not install packages on the hosts
+  --no-boot-unit         do not install the systemd unit that rewires each
+                         host after a reboot (on by default)
   --ask                  prompt for the password instead of reading the
                          DDOS_SSH_PASSWORD environment variable
   --help                 this text
@@ -63,6 +68,7 @@ while [ $# -gt 0 ]; do
     --known-hosts) KNOWN_HOSTS="${2:-}"; shift 2 ;;
     --clean) CLEAN="--clean"; shift ;;
     --skip-deps) SKIP_DEPS=1; shift ;;
+    --no-boot-unit) BOOT_UNIT="--no-boot-unit"; shift ;;
     --ask) ASK=1; shift ;;
     --help|-h) usage; exit 0 ;;
     *) usage >&2; die "unknown argument: $1" ;;
@@ -186,11 +192,11 @@ fi
 
 say "Bringing up host2 (broker, object store, workers)"
 sudo_on "$HOST2" "env DDOS_DETECTION_HOME=\$HOME/${REMOTE_DIR} \
-    \$HOME/${REMOTE_DIR}/deploy/host2.sh ${CLEAN}" || die "host2 deployment failed"
+    \$HOME/${REMOTE_DIR}/deploy/host2.sh ${CLEAN} ${BOOT_UNIT}" || die "host2 deployment failed"
 
 say "Bringing up host1 (three layers, collectors, Ryu)"
 sudo_on "$HOST1" "env DDOS_DETECTION_HOME=\$HOME/${REMOTE_DIR} \
-    \$HOME/${REMOTE_DIR}/deploy/host1.sh ${CLEAN}" || die "host1 deployment failed"
+    \$HOME/${REMOTE_DIR}/deploy/host1.sh ${CLEAN} ${BOOT_UNIT}" || die "host1 deployment failed"
 
 say "Verifying"
 printf '  controller: '
