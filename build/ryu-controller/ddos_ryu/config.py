@@ -78,6 +78,7 @@ class BlockerConfig:
     rest_port: int = 8080
     whitelist: list = field(default_factory=list)
     layer_dpid: dict = field(default_factory=dict)
+    block_state_file: str = "/var/lib/ddos-ryu/blocks.json"
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "BlockerConfig":
@@ -90,6 +91,7 @@ class BlockerConfig:
             rest_port=_int(env, "REST_PORT", 8080, 1),
             whitelist=parse_whitelist(env.get("BLOCK_WHITELIST") or DEFAULT_WHITELIST),
             layer_dpid=parse_layer_map(env.get("LAYER_DATAPATH_MAP") or DEFAULT_LAYER_MAP),
+            block_state_file=env.get("BLOCK_STATE_FILE") or cls.block_state_file,
         )
 
     def is_whitelisted(self, ip: str) -> bool:

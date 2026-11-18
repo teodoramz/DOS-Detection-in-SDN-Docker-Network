@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+from datetime import datetime, timezone
 
 from ryu.app.wsgi import ControllerBase, Response, WSGIApplication, route
 from ryu.base import app_manager
@@ -23,12 +24,16 @@ from .blocking import (
     ETH_TYPE_IPV4,
     LEARNED_PRIORITY,
     TABLE_MISS_PRIORITY,
+    BlockDecision,
     BlockTable,
     build_block_flow,
     build_clear_flows,
     build_forget_flow,
     decide,
     learn_mac,
+    load_blocks,
+    remaining_timeout,
+    save_blocks,
 )
 from .config import BlockerConfig
 
@@ -45,9 +50,11 @@ class DDoSBlocker(app_manager.RyuApp):
         self.cfg = BlockerConfig.from_env(os.environ)
         self.mac_to_port = {}
         self.datapaths = {}
-        self.blocks = BlockTable()
+        self.blocks = BlockTable(on_change=self._persist_blocks)
+        self.blocks.restore(load_blocks(self.cfg.block_state_file, datetime.now(timezone.utc)))
         self.alerts_seen = 0
         self.blocks_installed = 0
+        self.blocks_restored = 0
 
         kwargs["wsgi"].register(DDoSRestController, {INSTANCE_NAME: self})
 
@@ -73,7 +80,29 @@ class DDoSBlocker(app_manager.RyuApp):
 
         actions = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)]
         self._add_flow(datapath, TABLE_MISS_PRIORITY, parser.OFPMatch(), actions)
+        self._reinstall_blocks(datapath)
         self.logger.info("datapath %016x connected", datapath.id)
+
+    def _persist_blocks(self):
+        save_blocks(self.cfg.block_state_file, self.blocks.records())
+
+    def _reinstall_blocks(self, datapath):
+        """Put back the blocks that were active when the table was cleared."""
+        now = datetime.now(timezone.utc)
+        for entry in self.blocks.active(now):
+            ip = entry["source_ip"]
+            if entry["dpid"] != datapath.id:
+                continue
+            if self.cfg.is_whitelisted(ip):
+                self.blocks.forget(datapath.id, ip)
+                continue
+            timeout = remaining_timeout(entry["expires_at"], now)
+            if timeout is None:
+                continue
+            decision = BlockDecision(dpid=datapath.id, source_ip=ip, layer="restored")
+            datapath.send_msg(build_block_flow(datapath, decision, self.cfg, timeout))
+            self.blocks_restored += 1
+            self.logger.warning("RESTORE %s on datapath %016x for %ss", ip, datapath.id, timeout)
 
     def _add_flow(self, datapath, priority, match, actions, idle_timeout=0):
         parser = datapath.ofproto_parser
@@ -209,6 +238,7 @@ class DDoSRestController(ControllerBase):
             "datapaths": [f"{dpid:016x}" for dpid in sorted(self.app.datapaths)],
             "alerts_seen": self.app.alerts_seen,
             "blocks_installed": self.app.blocks_installed,
+            "blocks_restored": self.app.blocks_restored,
             "active_blocks": len(self.app.blocks.active()),
             "block_timeout_s": self.app.cfg.block_timeout,
             "layer_datapath_map": self.app.cfg.layer_dpid,

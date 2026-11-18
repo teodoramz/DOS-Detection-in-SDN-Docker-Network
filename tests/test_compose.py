@@ -117,3 +117,9 @@ def test_the_readme_tells_the_reader_to_rebuild_when_swapping_a_model():
     readme = Path("README.md").read_text()
     section = readme.split("### Adding or replacing a model", 1)[1][:800]
     assert "--build" in section, "a restart alone keeps serving the old model"
+
+
+def test_ryu_keeps_its_block_state_on_a_named_volume():
+    mounts = HOST1["services"]["ryu"]["volumes"]
+    assert any(m.endswith(":/var/lib/ddos-ryu") for m in mounts)
+    assert mounts[0].split(":")[0] in HOST1["volumes"]

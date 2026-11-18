@@ -81,3 +81,17 @@ def test_a_connecting_switch_is_cleared_before_the_table_miss_is_installed():
     body = ast.dump(handler)
     assert "build_clear_flows" in body
     assert body.index("build_clear_flows") < body.index("TABLE_MISS_PRIORITY")
+
+
+def test_app_reinstalls_persisted_blocks_when_a_switch_connects():
+    source = SOURCE.read_text()
+    assert "load_blocks" in source and "save_blocks" in source
+    assert "remaining_timeout" in source
+    assert "blocks_restored" in source
+
+
+def test_reinstall_happens_after_the_table_miss_rule():
+    handler = next(n for n in ast.walk(classes()["DDoSBlocker"])
+                   if isinstance(n, ast.FunctionDef) and n.name == "switch_features_handler")
+    body = ast.get_source_segment(SOURCE.read_text(), handler)
+    assert body.index("TABLE_MISS_PRIORITY") < body.index("_reinstall_blocks")

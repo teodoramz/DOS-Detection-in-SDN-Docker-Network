@@ -128,6 +128,8 @@ services:
       LAYER_DATAPATH_MAP: ${LAYER_DATAPATH_MAP}
       OFP_LISTEN_PORT: ${SDN_PORT}
       REST_PORT: ${SDN_PORT_REST_API}
+    volumes:
+      - ryu-state:/var/lib/ddos-ryu
 
   sw1:
     build:
@@ -172,3 +174,6 @@ services:
     hostname: ${OPENVSWITCH_SW4_HOSTNAME}
     container_name: ${OPENVSWITCH_SW4_CONTAINER_NAME}
     network_mode: none
+
+volumes:
+  ryu-state:

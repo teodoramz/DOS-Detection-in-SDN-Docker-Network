@@ -390,7 +390,7 @@ Served on port 8080 beside `ryu.app.ofctl_rest`.
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| GET | `/ddos/status` | connected datapaths, alert and block counts |
+| GET | `/ddos/status` | connected datapaths, alert, block and restored-block counts |
 | GET | `/ddos/blocks` | active blocks with remaining TTL |
 | POST | `/ddos/blocks` | install a block by hand |
 | DELETE | `/ddos/blocks/{ip}` | clear a block |
@@ -410,6 +410,7 @@ All of it reaches the containers through the generated `.env`.
 | `WORKER_<LAYER>_DETECTOR` | `auto` / `heuristic` | per-layer detector: `auto`, `model` or `heuristic` |
 | `BLOCK_HARD_TIMEOUT` | `300` | drop-rule lifetime, seconds; `0` never expires |
 | `BLOCK_PRIORITY` | `100` | OpenFlow priority of drop rules |
+| `BLOCK_STATE_FILE` | `/var/lib/ddos-ryu/blocks.json` | where active blocks are saved; the directory is the `ryu-state` volume |
 | `BLOCK_WHITELIST` | gateways, collectors, mgmt range, host2 services | never blocked |
 | `LAYER_DATAPATH_MAP` | `top:1,inter:2,bottom:3` | which switch enforces which layer |
 | `WORKER_JAVA_OPTS` | `-Xms256m -Xmx1g` | CICFlowMeter heap |
@@ -417,11 +418,15 @@ All of it reaches the containers through the generated `.env`.
 The whitelist matters: an alert naming a gateway or a collector would partition
 the testbed, so those addresses are refused and logged.
 
-The controller keeps its MAC and block tables in memory, so it clears each
-switch's table when that switch connects. A restart therefore drops the active
-blocks, and the next alert reinstalls them. Without it the switch would keep
-rules from the previous run — including ones delivering to veths that no longer
-exist, which traffic keeps refreshing past their idle timeout.
+The controller keeps its MAC table in memory, so it clears each switch's table
+when that switch connects; otherwise the switch would keep rules from the
+previous run — including ones delivering to veths that no longer exist, which
+traffic keeps refreshing past their idle timeout. The block table is written to
+`BLOCK_STATE_FILE` on every change, so after the clear and the table-miss rule
+the controller reinstalls that switch's blocks with their remaining lifetime
+(permanent ones stay permanent). Expired and whitelisted entries are skipped,
+and a missing or corrupt file starts empty. `/ddos/status` reports the running
+total as `blocks_restored`.
 
 One consequence is visible in the first window after a restart: with the MAC
 tables empty the bridges flood, so each layer's mirrored service port sees the

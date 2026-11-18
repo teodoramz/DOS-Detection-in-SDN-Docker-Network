@@ -7,8 +7,16 @@ object passed in.
 from __future__ import annotations
 
 import ipaddress
+import json
+import logging
+import math
+import os
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 #: The drop rule must outrank the learning switch's own entries.
 TABLE_MISS_PRIORITY = 0
@@ -51,8 +59,13 @@ def decide(alert, cfg) -> BlockDecision | None:
 class BlockTable:
     """Which sources are currently dropped, per datapath."""
 
-    def __init__(self) -> None:
+    def __init__(self, on_change: Callable[[], None] | None = None) -> None:
         self._entries: dict[tuple[int, str], dict] = {}
+        self._on_change = on_change
+
+    def _changed(self) -> None:
+        if self._on_change is not None:
+            self._on_change()
 
     def __len__(self) -> int:
         return len(self._entries)
@@ -68,15 +81,42 @@ class BlockTable:
         entry["hits"] += 1
         entry["last_seen"] = now
         entry["expires_at"] = None if timeout <= 0 else now + timedelta(seconds=timeout)
+        self._changed()
         return is_new
+
+    def restore(self, records: Iterable[dict]) -> None:
+        """Load records from parse_blocks. Does not notify: nothing changed."""
+        for rec in records:
+            installed = datetime.fromtimestamp(rec["installed_at"], timezone.utc)
+            expires = rec["expires_at"]
+            self._entries[(rec["dpid"], rec["source_ip"])] = {
+                "dpid": rec["dpid"], "source_ip": rec["source_ip"], "hits": 1,
+                "first_seen": installed, "last_seen": installed,
+                "expires_at": None if expires is None
+                else datetime.fromtimestamp(expires, timezone.utc),
+            }
+
+    def records(self) -> list[dict]:
+        """What persistence needs to reinstall each block."""
+        return [
+            {
+                "dpid": e["dpid"],
+                "source_ip": e["source_ip"],
+                "installed_at": e["first_seen"].timestamp(),
+                "expires_at": None if e["expires_at"] is None else e["expires_at"].timestamp(),
+            }
+            for e in self._entries.values()
+        ]
 
     def active(self, now: datetime | None = None) -> list[dict]:
         now = now or datetime.now(timezone.utc)
         out = []
+        expired = False
         for key, entry in list(self._entries.items()):
             expires = entry["expires_at"]
             if expires is not None and expires <= now:
                 del self._entries[key]
+                expired = True
                 continue
             out.append({
                 **entry,
@@ -85,16 +125,90 @@ class BlockTable:
                 "expires_at": expires,
                 "remaining_s": None if expires is None else int((expires - now).total_seconds()),
             })
+        if expired:
+            self._changed()
         return out
 
     def forget(self, dpid: int, ip: str) -> bool:
-        return self._entries.pop((dpid, ip), None) is not None
+        removed = self._entries.pop((dpid, ip), None) is not None
+        if removed:
+            self._changed()
+        return removed
 
 
-def build_block_flow(datapath, decision: BlockDecision, cfg):
+def remaining_timeout(expires_at: datetime | None, now: datetime) -> int | None:
+    """Hard timeout for a reinstalled rule: 0 for permanent, None once expired."""
+    if expires_at is None:
+        return 0
+    left = (expires_at - now).total_seconds()
+    if left <= 0:
+        return None
+    return max(1, math.ceil(left))
+
+
+def serialise_blocks(records: Iterable[dict]) -> str:
+    return json.dumps(list(records), indent=2)
+
+
+def _valid_record(rec) -> bool:
+    if not isinstance(rec, dict):
+        return False
+    try:
+        ipaddress.IPv4Address(rec["source_ip"])
+    except (KeyError, ValueError):
+        return False
+    expires = rec.get("expires_at")
+    return (
+        isinstance(rec.get("dpid"), int) and not isinstance(rec["dpid"], bool)
+        and isinstance(rec.get("installed_at"), (int, float))
+        and (expires is None or isinstance(expires, (int, float)))
+    )
+
+
+def parse_blocks(text: str, now: datetime) -> list[dict]:
+    """Records from a saved table, minus malformed and expired ones.
+
+    Raises ValueError when the text is not a JSON list at all.
+    """
+    data = json.loads(text)
+    if not isinstance(data, list):
+        raise ValueError("block state must be a JSON list")
+    cutoff = now.timestamp()
+    return [
+        rec for rec in data
+        if _valid_record(rec) and (rec["expires_at"] is None or rec["expires_at"] > cutoff)
+    ]
+
+
+def load_blocks(path, now: datetime) -> list[dict]:
+    """Saved blocks still in force. A missing or unreadable file means none."""
+    path = Path(path)
+    try:
+        return parse_blocks(path.read_text(), now)
+    except FileNotFoundError:
+        return []
+    except (OSError, ValueError) as exc:
+        log.warning("ignoring block state %s: %s", path, exc)
+        return []
+
+
+def save_blocks(path, records: Iterable[dict]) -> None:
+    """Write atomically so a crash never leaves a half-written file."""
+    path = Path(path)
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp.write_text(serialise_blocks(records))
+        os.replace(tmp, path)
+    except OSError as exc:
+        log.warning("could not save block state %s: %s", path, exc)
+
+
+def build_block_flow(datapath, decision: BlockDecision, cfg, hard_timeout: int | None = None):
     """An OFPFlowMod that drops everything from this source.
 
     No actions means no output, which is how OpenFlow expresses a drop.
+    ``hard_timeout`` overrides the configured lifetime, for reinstalled blocks.
     """
     parser = datapath.ofproto_parser
     ofproto = datapath.ofproto
@@ -107,7 +221,7 @@ def build_block_flow(datapath, decision: BlockDecision, cfg):
         priority=cfg.block_priority,
         match=match,
         instructions=instructions,
-        hard_timeout=cfg.block_timeout,
+        hard_timeout=cfg.block_timeout if hard_timeout is None else hard_timeout,
         command=ofproto.OFPFC_ADD,
     )
 

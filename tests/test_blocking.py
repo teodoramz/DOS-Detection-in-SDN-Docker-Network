@@ -221,3 +221,134 @@ def test_clearing_a_switch_removes_everything_in_the_table():
     assert mod["out_port"] == FakeOfProto.OFPP_ANY
     assert mod["out_group"] == FakeOfProto.OFPG_ANY
     assert mod.get("table_id", 0) == 0
+
+
+# --- persistence -----------------------------------------------------------
+
+import json  # noqa: E402
+
+import pytest  # noqa: E402
+
+from ddos_ryu.blocking import (  # noqa: E402
+    load_blocks, parse_blocks, remaining_timeout, save_blocks, serialise_blocks,
+)
+
+
+def table_with(*blocks):
+    table = BlockTable()
+    for dpid, ip, timeout in blocks:
+        table.record(dpid, ip, timeout, now=NOW)
+    return table
+
+
+def test_remaining_timeout_rounds_up_with_a_floor_of_one_second():
+    assert remaining_timeout(NOW + timedelta(seconds=10.2), NOW) == 11
+    assert remaining_timeout(NOW + timedelta(seconds=0.1), NOW) == 1
+    assert remaining_timeout(NOW + timedelta(seconds=30), NOW) == 30
+
+
+def test_remaining_timeout_is_zero_for_a_permanent_block():
+    assert remaining_timeout(None, NOW) == 0
+
+
+def test_remaining_timeout_is_none_once_expired():
+    assert remaining_timeout(NOW, NOW) is None
+    assert remaining_timeout(NOW - timedelta(seconds=1), NOW) is None
+
+
+def test_serialised_records_carry_what_a_reinstall_needs():
+    text = serialise_blocks(table_with((1, "10.0.1.50", 300), (2, "10.0.2.50", 0)).records())
+    by_ip = {r["source_ip"]: r for r in json.loads(text)}
+    assert by_ip["10.0.1.50"]["dpid"] == 1
+    assert by_ip["10.0.1.50"]["installed_at"] == NOW.timestamp()
+    assert by_ip["10.0.1.50"]["expires_at"] == NOW.timestamp() + 300
+    assert by_ip["10.0.2.50"]["expires_at"] is None
+
+
+def test_round_trip_restores_the_same_blocks():
+    original = table_with((1, "10.0.1.50", 300), (2, "10.0.2.50", 0))
+    records = parse_blocks(serialise_blocks(original.records()), NOW)
+    restored = BlockTable()
+    restored.restore(records)
+    assert {(b["dpid"], b["source_ip"], b["remaining_s"]) for b in restored.active(NOW)} == {
+        (1, "10.0.1.50", 300), (2, "10.0.2.50", None),
+    }
+
+
+def test_parse_drops_expired_records():
+    text = serialise_blocks(table_with((1, "10.0.1.50", 300), (1, "10.0.1.51", 5)).records())
+    later = NOW + timedelta(seconds=10)
+    assert [r["source_ip"] for r in parse_blocks(text, later)] == ["10.0.1.50"]
+
+
+def test_parse_skips_malformed_records_and_keeps_the_rest():
+    good = {"dpid": 1, "source_ip": "10.0.1.50",
+            "installed_at": NOW.timestamp(), "expires_at": None}
+    text = json.dumps([good, {"dpid": "x"}, "junk", {**good, "source_ip": "nope"}])
+    assert [r["source_ip"] for r in parse_blocks(text, NOW)] == ["10.0.1.50"]
+
+
+@pytest.mark.parametrize("text", ["", "{not json", '{"a": 1}'])
+def test_parse_rejects_text_that_is_not_a_list(text):
+    with pytest.raises(ValueError):
+        parse_blocks(text, NOW)
+
+
+def test_load_of_a_missing_file_is_empty(tmp_path):
+    assert load_blocks(tmp_path / "absent.json", NOW) == []
+
+
+def test_load_of_a_corrupt_file_is_empty_and_warns(tmp_path, caplog):
+    path = tmp_path / "blocks.json"
+    path.write_text("{truncated")
+    assert load_blocks(path, NOW) == []
+    assert "blocks.json" in caplog.text
+
+
+def test_save_is_atomic_and_creates_the_directory(tmp_path):
+    path = tmp_path / "state" / "blocks.json"
+    save_blocks(path, table_with((1, "10.0.1.50", 300)).records())
+    assert [r["source_ip"] for r in load_blocks(path, NOW)] == ["10.0.1.50"]
+    assert [p.name for p in path.parent.iterdir()] == ["blocks.json"]
+
+
+def test_save_failure_is_logged_not_raised(tmp_path, caplog):
+    blocker = tmp_path / "file"
+    blocker.write_text("x")
+    save_blocks(blocker / "blocks.json", [])
+    assert "blocks.json" in caplog.text
+
+
+def test_table_notifies_on_record_forget_and_expiry():
+    changes = []
+    table = BlockTable(on_change=lambda: changes.append(1))
+    table.record(1, "10.0.1.50", 5, now=NOW)
+    table.forget(1, "10.0.1.50")
+    table.record(1, "10.0.1.51", 5, now=NOW)
+    table.active(NOW + timedelta(seconds=6))
+    assert len(changes) == 4
+
+
+def test_forget_of_an_unknown_block_does_not_notify():
+    changes = []
+    BlockTable(on_change=lambda: changes.append(1)).forget(1, "10.0.1.50")
+    assert changes == []
+
+
+def test_block_flow_can_override_the_timeout():
+    class P:
+        def OFPMatch(self, **kw): return kw
+        def OFPInstructionActions(self, *a): return a
+        def OFPFlowMod(self, **kw): return kw
+
+    class O:
+        OFPIT_APPLY_ACTIONS = 4
+        OFPFC_ADD = 0
+
+    class D:
+        ofproto_parser, ofproto = P(), O()
+
+    decision = BlockDecision(1, "10.0.1.50", "top")
+    assert build_block_flow(D(), decision, CFG)["hard_timeout"] == 300
+    assert build_block_flow(D(), decision, CFG, hard_timeout=42)["hard_timeout"] == 42
+    assert build_block_flow(D(), decision, CFG, hard_timeout=0)["hard_timeout"] == 0

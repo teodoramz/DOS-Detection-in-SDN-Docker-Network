@@ -125,3 +125,11 @@ def test_the_deployed_whitelist_matches_the_code_default():
     assert set(rendered.split(",")) == set(DEFAULT_WHITELIST.split(",")), (
         "env.j2 and config.py disagree; the .env copy is the one that runs"
     )
+
+
+def test_block_state_file_defaults_under_the_volume_directory():
+    assert cfg().block_state_file == "/var/lib/ddos-ryu/blocks.json"
+
+
+def test_block_state_file_is_overridable():
+    assert cfg(BLOCK_STATE_FILE="/tmp/b.json").block_state_file == "/tmp/b.json"
