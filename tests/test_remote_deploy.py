@@ -165,3 +165,136 @@ def test_the_deployed_revision_is_recorded_on_the_host():
 def test_it_warns_when_the_host_checkout_no_longer_matches_its_git_state():
     text = SCRIPT.read_text()
     assert "git checkout" in text, "the hazard has to be named where it is seen"
+
+
+PRUNE = Path("deploy/prune.sh")
+
+
+def _nul(paths):
+    return b"".join(p.encode() + b"\0" for p in paths)
+
+
+def _fake_host(tmp_path, previous):
+    host = tmp_path / "ddos"
+    files = ["a.py", "dir/kept.txt", "dir with space/kept two.txt",
+             "lib/old.jar", "dir with space/old one.txt", "lib/new.jar",
+             ".env", ".deployed", "volumes/kafka/x",
+             "build/certs/ssl/cert.key", "build/proxy/certs/ssl/p.key",
+             "startup/files/output/a", "stray.log", "ignored.pcap"]
+    for name in files:
+        f = host / name
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("x")
+    if previous:
+        (host / ".deployed-files").write_bytes(_nul(
+            ["a.py", "dir/kept.txt", "dir with space/kept two.txt",
+             "lib/old.jar", "dir with space/old one.txt"]))
+    new = tmp_path / "new-manifest"
+    new.write_bytes(_nul(["a.py", "dir/kept.txt", "dir with space/kept two.txt",
+                          "lib/new.jar"]))
+    return host, new
+
+
+def _run(*args):
+    return subprocess.run(["bash", str(PRUNE), *map(str, args)],
+                          capture_output=True, text=True, timeout=30)
+
+
+def _left(host):
+    return {str(p.relative_to(host)) for p in host.rglob("*") if p.is_file()}
+
+
+PROTECTED = {".env", ".deployed", "volumes/kafka/x", "build/certs/ssl/cert.key",
+             "build/proxy/certs/ssl/p.key", "startup/files/output/a"}
+
+
+def test_prune_is_valid_bash_and_executable():
+    assert os.stat(PRUNE).st_mode & stat.S_IXUSR
+    assert subprocess.run(["bash", "-n", str(PRUNE)]).returncode == 0
+
+
+def test_a_file_dropped_from_the_manifest_is_removed(tmp_path):
+    host, new = _fake_host(tmp_path, previous=True)
+    result = _run("apply", host, new)
+    assert result.returncode == 0, result.stderr
+    assert "lib/old.jar" in result.stdout
+    left = _left(host)
+    assert "lib/old.jar" not in left
+    assert "dir with space/old one.txt" not in left
+    # not in the old manifest, so not ours to delete
+    assert {"stray.log", "ignored.pcap", "a.py", "lib/new.jar"} <= left
+    assert "dir with space/kept two.txt" in left
+    assert PROTECTED <= left
+
+
+def test_only_directories_the_removal_emptied_go(tmp_path):
+    host, new = _fake_host(tmp_path, previous=True)
+    (host / "empty-already").mkdir()
+    (host / "gone").mkdir()
+    (host / "gone/f").write_text("x")
+    (host / ".deployed-files").write_bytes(
+        (host / ".deployed-files").read_bytes() + b"gone/f\0")
+    assert _run("apply", host, new).returncode == 0
+    assert not (host / "gone").exists()
+    assert (host / "empty-already").is_dir()
+    assert (host / "dir with space").is_dir()
+
+
+def test_protected_paths_survive_even_if_a_manifest_lists_them(tmp_path):
+    host, new = _fake_host(tmp_path, previous=True)
+    old = host / ".deployed-files"
+    old.write_bytes(old.read_bytes() + _nul(sorted(PROTECTED)))
+    assert _run("apply", host, new).returncode == 0
+    assert PROTECTED <= _left(host)
+
+
+def test_first_deploy_removes_untracked_files_git_does_not_ignore(tmp_path):
+    host, new = _fake_host(tmp_path, previous=False)
+    listed = _run("candidates", host, new)
+    assert listed.returncode == 0
+    names = set(listed.stdout.split("\0")) - {""}
+    assert names == {"lib/old.jar", "dir with space/old one.txt",
+                     "stray.log", "ignored.pcap"}
+    ignored = tmp_path / "ignored"
+    ignored.write_bytes(_nul(["ignored.pcap"]))
+    result = _run("apply", host, new, ignored)
+    assert result.returncode == 0, result.stderr
+    left = _left(host)
+    assert not ({"lib/old.jar", "dir with space/old one.txt", "stray.log"} & left)
+    assert "ignored.pcap" in left
+    assert PROTECTED <= left
+    assert {"a.py", "lib/new.jar"} <= left
+
+
+def test_first_deploy_needs_an_ignore_list(tmp_path):
+    host, new = _fake_host(tmp_path, previous=False)
+    assert _run("apply", host, new).returncode != 0
+    assert (host / "stray.log").exists()
+
+
+def test_a_manifest_cannot_reach_outside_the_directory(tmp_path):
+    host, new = _fake_host(tmp_path, previous=True)
+    new.write_bytes(_nul(["../escape"]))
+    assert _run("apply", host, new).returncode != 0
+
+
+def test_the_bundle_carries_a_manifest_and_prunes_before_copying():
+    text = SCRIPT.read_text()
+    assert ".deployed-files" in text
+    assert "prune.sh apply" in text
+    assert text.index("prune.sh apply") < text.index("cp -a")
+
+
+def test_the_bundle_is_never_extracted_from_inside_the_deployment():
+    """The tarball sits beside the deployment and is deleted, so it cannot be
+    copied into it."""
+    text = SCRIPT.read_text()
+    assert "incoming/bundle.tar.gz" not in text
+    assert "${REMOTE_DIR}.bundle.tar.gz" in text
+    assert "rm -f ~/${REMOTE_DIR}.bundle.tar.gz" in text
+
+
+def test_ignore_rules_come_from_git_and_deletion_goes_through_sudo():
+    text = SCRIPT.read_text()
+    assert "check-ignore" in text
+    assert 'sudo_on "$target" "\\$HOME/${REMOTE_DIR}.incoming/deploy/prune.sh apply' in text

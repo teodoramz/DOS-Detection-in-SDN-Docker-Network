@@ -151,22 +151,52 @@ DEPLOYED_DIRTY=$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l | tr
 } > "$MARKER/.deployed"
 # Tracked files only. .env holds the object-store credentials and is generated
 # on each host anyway, and git already ignores the captures and the datasets.
+# The list of tracked paths travels too, so a host can drop what a later
+# revision deletes instead of keeping it next to its replacement.
+HAVE_MANIFEST=""
 if git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-  git -C "$REPO_ROOT" ls-files -z \
-    | tar czf "$BUNDLE" -C "$REPO_ROOT" --null --no-recursion -T -
+  git -C "$REPO_ROOT" ls-files -z > "$MARKER/.deployed-files"
+  HAVE_MANIFEST=1
+  tar czf "$BUNDLE" -C "$REPO_ROOT" --null --no-recursion -T "$MARKER/.deployed-files"
 else
   tar czf "$BUNDLE" -C "$REPO_ROOT" \
     --exclude=.git --exclude=.env --exclude=volumes --exclude=__pycache__ \
     --exclude=.pytest_cache --exclude='*.pcap' --exclude='*.pdf' --exclude='*.zip' .
 fi
+
+# With no manifest from an earlier deploy, only git can say which untracked
+# files on a host are generated: the host lists them, git ignore rules are
+# applied here, and the host deletes the rest.
+prune_untracked() {
+  local target=$1
+  local candidates=$MARKER/candidates ignored=$MARKER/ignored
+  sudo_on "$target" "\$HOME/${REMOTE_DIR}.incoming/deploy/prune.sh candidates \
+      \$HOME/${REMOTE_DIR} \$HOME/${REMOTE_DIR}.incoming/.deployed-files" > "$candidates"
+  git -C "$REPO_ROOT" check-ignore -z --stdin --no-index < "$candidates" > "$ignored" || true
+  "${SCP[@]}" "$ignored" "$target:~/${REMOTE_DIR}.ignored"
+}
+
 for target in "$HOST1" "$HOST2"; do
-  on "$target" "rm -rf ~/${REMOTE_DIR}.incoming && mkdir -p ~/${REMOTE_DIR}.incoming"
-  "${SCP[@]}" "$BUNDLE" "$target:~/${REMOTE_DIR}.incoming/bundle.tar.gz"
+  on "$target" "rm -rf ~/${REMOTE_DIR}.incoming ~/${REMOTE_DIR}.bundle.tar.gz ~/${REMOTE_DIR}.ignored && mkdir -p ~/${REMOTE_DIR} ~/${REMOTE_DIR}.incoming"
+  "${SCP[@]}" "$BUNDLE" "$target:~/${REMOTE_DIR}.bundle.tar.gz"
   "${SCP[@]}" "$MARKER/.deployed" "$target:~/${REMOTE_DIR}.incoming/.deployed"
-  on "$target" "tar xzf ~/${REMOTE_DIR}.incoming/bundle.tar.gz -C ~/${REMOTE_DIR}.incoming \
-                && mkdir -p ~/${REMOTE_DIR} \
+  on "$target" "tar xzf ~/${REMOTE_DIR}.bundle.tar.gz -C ~/${REMOTE_DIR}.incoming && rm -f ~/${REMOTE_DIR}.bundle.tar.gz"
+  if [ -n "$HAVE_MANIFEST" ]; then
+    "${SCP[@]}" "$MARKER/.deployed-files" "$target:~/${REMOTE_DIR}.incoming/.deployed-files"
+    printf '  removing files this revision no longer ships\n'
+    if on "$target" "test -f ~/${REMOTE_DIR}/.deployed-files"; then
+      ignored_arg=""
+    else
+      prune_untracked "$target"
+      ignored_arg="\$HOME/${REMOTE_DIR}.ignored"
+    fi
+    sudo_on "$target" "\$HOME/${REMOTE_DIR}.incoming/deploy/prune.sh apply \
+        \$HOME/${REMOTE_DIR} \$HOME/${REMOTE_DIR}.incoming/.deployed-files ${ignored_arg}" \
+      || die "could not remove stale files on $target"
+  fi
+  on "$target" "mkdir -p ~/${REMOTE_DIR} \
                 && cp -a ~/${REMOTE_DIR}.incoming/. ~/${REMOTE_DIR}/ \
-                && rm -rf ~/${REMOTE_DIR}.incoming \
+                && rm -rf ~/${REMOTE_DIR}.incoming ~/${REMOTE_DIR}.ignored \
                 && chmod +x ~/${REMOTE_DIR}/deploy/*.sh ~/${REMOTE_DIR}/host*/*.sh \
                            ~/${REMOTE_DIR}/utils/*.sh ~/${REMOTE_DIR}/attacks/*.sh"
   printf '  %s:~/%s at %s\n' "$target" "$REMOTE_DIR" "$DEPLOYED_REVISION"

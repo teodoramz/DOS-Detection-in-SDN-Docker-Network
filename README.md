@@ -257,6 +257,12 @@ holds a clone of this repository, the deployed files will show up there as local
 modifications and `git checkout .` would revert the running system — the script
 warns when it sees that.
 
+Each deploy also removes the files the new revision no longer tracks
+(`deploy/prune.sh`, logged as it goes), so a deleted jar does not linger beside
+its replacement; `.env`, `volumes/`, the certificates and everything else git
+ignores are left alone. The first deploy after this was added has no previous
+file list and deletes any untracked, non-ignored file it finds.
+
 To drive the hosts by hand instead, host2 goes first, so Kafka and the workers
 exist before host1 starts publishing:
 
