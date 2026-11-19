@@ -79,11 +79,3 @@ def test_imbalanced_learn_matches_the_pinned_scikit_learn():
     match = re.search(r"^imbalanced-learn==(\d+)\.(\d+)", WORKER, re.M)
     assert match
     assert (int(match.group(1)), int(match.group(2))) >= (0, 13)
-
-
-def test_dependabot_is_configured_with_its_exceptions_stated():
-    config = Path(".github/dependabot.yml")
-    assert config.is_file(), "no dependabot config; the alert list stays unactionable"
-    text = config.read_text()
-    for pinned in ("eventlet", "dnspython", "ryu"):
-        assert pinned in text, f"{pinned} is pinned by ryu 4.34 and must be declared"

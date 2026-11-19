@@ -1,6 +1,6 @@
 # Dependency audit
 
-Audited offline with `pip-audit` (PyPI advisories) and the OSV API (Maven). Dependabot's alert list was not readable, so the count GitHub shows (22) could not be matched one-to-one; this table is what the manifests and vendored jars actually contain.
+Audited offline with `pip-audit` (PyPI advisories) and the OSV API (Maven). GitHub's alert list was not readable, so the count it showed (22) could not be matched one-to-one; this table is what the manifests and vendored jars actually contain.
 
 ## Python
 
@@ -15,7 +15,7 @@ Audited offline with `pip-audit` (PyPI advisories) and the OSV API (Maven). Depe
 | ryu | 4.34 | CVE-2020-35139, CVE-2020-35141, CVE-2024-28732, CVE-2024-34483/84/86/87/88/89 | none (unmaintained) | accepted |
 | pandas, numpy, scikit-learn, imbalanced-learn, xgboost, joblib, minio, jinja2 | as pinned | none | | unchanged |
 
-Accepted items: ryu 4.34 requires eventlet<0.31, which requires dnspython<2; moving any of them breaks the controller (see `.github/dependabot.yml`). The controller is only reachable from the internal OpenFlow and management networks.
+Accepted items: ryu 4.34 requires eventlet<0.31, which requires dnspython<2; moving any of them breaks the controller. The controller is only reachable from the internal OpenFlow and management networks.
 
 scikit-learn stays 1.6.1 and xgboost 2.1.3 because the committed pickles were trained on them; `models/{top,inter,bottom}/models.joblib` load under the pinned set after the bumps above.
 
