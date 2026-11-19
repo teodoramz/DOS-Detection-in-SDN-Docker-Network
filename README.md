@@ -90,12 +90,59 @@ source port space, leaving one packet per 5-tuple at a fraction of a packet per
 second, and CICFlowMeter discards single-packet flows. `launch_spoofed_flows`
 now holds 16 source ports open with 512-byte payloads at hping3's own rate.
 
-The top layer's model is the weak one: every benign flow scores at or above
-0.9987, so it alerts on `10.0.2.2` for doing 87 DNS lookups over five minutes.
-It looks correct here only because every legitimate address in the testbed is
-whitelisted, so the attacker is the only source that can produce a block. In a
-network where clients were not whitelisted it would block them as well.
-Retraining that model on local traffic is the highest-value change left.
+The top layer's model is the weak one. It scores almost every DNS flow as an
+attack — all 96 benign flows at or above 0.9987 — so it cannot tell a lookup
+from a flood. What it actually blocks is narrower, because two rules sit
+between a score and a drop rule:
+
+- **Volume.** A source is blocked only when `ALERT_MIN_FLOWS` (10) of its flows
+  in one 30-second window cross the threshold. Each DNS lookup is one flow, so a
+  client making fewer than ten lookups per window is never blocked.
+- **Whitelist.** `BLOCK_WHITELIST` addresses are never blocked, whatever is
+  scored.
+
+In effect, any source outside the whitelist that makes ten or more DNS lookups
+in 30 seconds is blocked, attacker or not. The model alerts on `10.0.2.2` for 87
+ordinary lookups over five minutes, and only the whitelist keeps that from
+becoming a block. The top layer behaves correctly in this testbed because every
+legitimate address is whitelisted, which leaves the spoofed attacker as the only
+source that can be blocked. In a network with ordinary, non-whitelisted DNS
+clients it would block the busy ones too. The top layer also has no heuristic
+fallback.
+
+> **Side note: a better DNS model.** The detection path is not the limit here;
+> the model is. A replacement needs no code change, only a model that separates
+> benign DNS traffic from the testbed's attacks:
+>
+> 1. **Generate benign DNS traffic** on host1. Sweep the rates around the alert
+>    floor, since that is where false blocks happen:
+>    `sudo RATES="5 10 20 40" WINDOWS=4 ./training/generate_benign_dns.sh`.
+>    The rates are lookups per 30-second window. A few lookups per second is
+>    already flood-shaped (see
+>    [`training/reports/testbed_baseline.md`](training/reports/testbed_baseline.md)).
+>    The generator queries from the `proxy` container by default; set
+>    `CONTAINER` to use another container that has `dig`.
+> 2. **Collect it** with `training/collect_testbed_flows.py --label 0`, and the
+>    attack windows with `--label 1` (see [Training](#training)). Keep these
+>    files separate from `training/data/testbed_top.csv.gz`, which is the
+>    held-out check.
+> 3. **Train with `LAYER = "top"`** in `training/train_layer_model.ipynb`, listing
+>    the new files in `LOCAL_TRAIN_CSVS`. They join the CIC-DDoS2019 rows before
+>    the split, and are never capped by `MAX_PER_CLASS`. The notebook stops if
+>    any of them shares rows with the held-out set.
+> 4. **Export only what passes section 8.** The notebook exports a model only if
+>    it fires on the testbed attacker **and** its `benign_sources_alerted` is 0,
+>    meaning the deployed rule would fire on no benign source. If no model
+>    qualifies, it stops rather than export one. `ALLOW_FALSE_ALERTS = True`
+>    overrides that, and the report records that you did. The current top model
+>    fails this check.
+> 5. **Drop the exported files into `build/worker/models/top/`** and rebuild that
+>    worker, as described in [Adding or replacing a model](#adding-or-replacing-a-model).
+>    Any algorithm that works with that loader can be used.
+>
+> To confirm the improvement live, run `attacks/top.sh` with a `SPOOF_SOURCE`
+> outside the whitelist and check that it is still blocked. Then run the
+> generator from a non-whitelisted client and check that it is not.
 
 XGBoost is simply what the top layer ships with today, not a requirement. Any
 fitted estimator that exposes `predict_proba`, `decision_function` or `predict`
