@@ -146,3 +146,124 @@ def test_the_notebook_scores_with_the_worker_s_own_probability_rule(source):
     assert "probabilities" in source
     assert "from ddos_worker.detectors.model import probabilities" in source
     assert "def probabilities(" not in source, "the notebook must not define its own"
+
+
+def _config(source, name):
+    import re
+    m = re.search(rf"^{name}\s*=\s*(.+?)\s*(#.*)?$", source, re.M)
+    assert m, f"{name} missing from the config"
+    return ast.literal_eval(m.group(1))
+
+
+def test_local_training_csvs_default_to_empty(source):
+    assert _config(source, "LOCAL_TRAIN_CSVS") == []
+
+
+def test_false_alerts_are_refused_by_default(source):
+    assert _config(source, "ALLOW_FALSE_ALERTS") is False
+
+
+def test_the_gate_counts_benign_sources_that_alert(source):
+    assert "benign_sources_alerted" in source
+
+
+def test_the_export_refuses_without_an_eligible_model(source):
+    assert "select_export" in source
+    assert "ALLOW_FALSE_ALERTS" in source
+
+
+def test_local_rows_are_normalised_like_the_gate_and_reported(source):
+    assert "LOCAL_TRAIN_CSVS" in source
+    assert "local_rows" in source
+
+
+def test_the_gate_set_cannot_leak_into_training(source):
+    assert "assert_no_gate_overlap" in source
+    assert "from gate_policy import" in source
+
+
+@pytest.fixture(scope="module")
+def policy():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("gate_policy", "training/gate_policy.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _flows(rows):
+    import pandas as pd
+    return pd.DataFrame(rows, columns=["src", "p", "y"])
+
+
+def test_benign_sources_alerted_counts_only_benign_sources(policy):
+    rows = ([("b1", 0.99, 0)] * 10 + [("b2", 0.99, 0)] * 9 + [("b3", 0.1, 0)] * 20
+            + [("a1", 0.99, 1)] * 30)
+    f = _flows(rows)
+    n = policy.benign_sources_alerted(f.src, f.p, f.y, threshold=0.5, min_flows=10)
+    assert n == 1
+
+
+def test_select_export_skips_models_that_block_benign_sources(policy):
+    import pandas as pd
+    gate = pd.DataFrame([
+        dict(model="A", alert_f1=1.0, attack_pmax=1.0, would_fire=True, benign_sources_alerted=2),
+        dict(model="B", alert_f1=0.8, attack_pmax=0.9, would_fire=True, benign_sources_alerted=0),
+        dict(model="C", alert_f1=0.0, attack_pmax=0.1, would_fire=False, benign_sources_alerted=0),
+    ]).sort_values(["alert_f1", "attack_pmax"], ascending=False)
+    assert policy.select_export(gate, allow_false_alerts=False) == ("B", False)
+
+
+def test_select_export_raises_when_none_is_eligible(policy):
+    import pandas as pd
+    gate = pd.DataFrame([
+        dict(model="A", alert_f1=1.0, attack_pmax=1.0, would_fire=True, benign_sources_alerted=3),
+    ])
+    with pytest.raises(RuntimeError, match="benign"):
+        policy.select_export(gate, allow_false_alerts=False)
+    assert policy.select_export(gate, allow_false_alerts=True) == ("A", True)
+
+
+def test_select_export_raises_when_nothing_fires_even_if_allowed(policy):
+    import pandas as pd
+    gate = pd.DataFrame([
+        dict(model="C", alert_f1=0.0, attack_pmax=0.1, would_fire=False, benign_sources_alerted=0),
+    ])
+    with pytest.raises(RuntimeError):
+        policy.select_export(gate, allow_false_alerts=True)
+
+
+def test_leak_guard_rejects_shared_rows_and_accepts_disjoint(policy):
+    import pandas as pd
+    gate = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0], "y": [0, 1]})
+    same_row = pd.DataFrame({"a": [2.0, 9.0], "b": [4.0, 9.0], "y": [1, 0]})
+    other = pd.DataFrame({"a": [7.0], "b": [8.0], "y": [0]})
+    with pytest.raises(RuntimeError, match="gate"):
+        policy.assert_no_gate_overlap(same_row, gate, ["a", "b"], name="x.csv")
+    policy.assert_no_gate_overlap(other, gate, ["a", "b"], name="y.csv")
+    flipped = pd.DataFrame({"a": [2.0], "b": [4.0], "y": [0]})
+    policy.assert_no_gate_overlap(flipped, gate, ["a", "b"], name="z.csv")
+
+
+GENERATOR = Path("training/generate_benign_dns.sh")
+
+
+def test_the_generator_is_a_runnable_script():
+    import os, stat, subprocess
+    assert GENERATOR.is_file()
+    assert subprocess.run(["bash", "-n", str(GENERATOR)]).returncode == 0
+    assert os.stat(GENERATOR).st_mode & stat.S_IXUSR
+
+
+def test_the_generator_is_configured_by_rate_and_duration_and_never_floods():
+    text = GENERATOR.read_text()
+    for knob in ("PER_WINDOW", "RATES", "DURATION", "ZONE", "TARGET"):
+        assert knob in text
+    assert "cyberstuff.local" in text and "10.0.1.2" in text
+    assert "--flood" not in text
+    assert "dig" in text
+
+
+def test_the_notebook_documents_collecting_a_benign_set(notebook):
+    md = "\n".join("".join(c["source"]) for c in notebook["cells"] if c["cell_type"] == "markdown")
+    assert "generate_benign_dns.sh" in md and "--label 0" in md
