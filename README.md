@@ -34,7 +34,7 @@ control.
 ## How detection works
 
 1. A collector mirrors its layer's service port and runs `tcpdump` for a
-   30-second window.
+   30-second window, or until `CAPTURE_MAX_PACKETS` packets if that comes first.
 2. The pcap is uploaded to MinIO; a Kafka message carries only a reference to
    it, since Kafka messages are capped at 1 MB.
 3. The layer's worker consumes that reference, fetches the object, converts it
@@ -390,6 +390,24 @@ Repeated alerts for one source produce a single block entry with a rising
 `priority=100` entry in the switch. Floods launched from a whitelisted address
 were detected and deliberately not blocked.
 
+### Bounding a window
+
+CICFlowMeter holds every active flow in the JVM heap, so conversion cost follows
+the flow count, not the file size. A 30-second capture of the inter-layer attack
+(two `hping3 --flood` processes and 16 spoofed streams) reached 4.9 million
+packets and 2.6 GB. Converted with the default 1 GB heap, the first 1M packets
+took 14s, the first 2M (95,617 flows) took 70–110s with the heap nearly full, and
+3M and the whole file died with `OutOfMemoryError`, so that window produced no
+flows, no alert and no block. Older jar sets behave the same.
+
+A source needs only `ALERT_MIN_FLOWS` flows, and the spoofed source already had
+16 in the first 100,000 packets (3s to convert). So each collector stops
+`tcpdump` at `CAPTURE_MAX_PACKETS` (100,000) and waits out the rest of the
+window, and the worker trims any larger capture to `WORKER_MAX_PACKETS` before
+converting it. Worst case, a window where every packet is its own flow, 100,000
+packets converted in 2s within 650 MB, against failure at 250,000. A window cut
+short reports its real length in `duration_s`.
+
 ## Mitigation API
 
 Served on port 8080 beside `ryu.app.ofctl_rest`.
@@ -408,6 +426,7 @@ All of it reaches the containers through the generated `.env`.
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `CAPTURE_DURATION` | `30` | capture window, seconds |
+| `CAPTURE_MAX_PACKETS` | `100000` | a window ends at this many packets if that comes before `CAPTURE_DURATION`; `0` is unbounded |
 | `CAPTURE_INTERFACE` | `eth0` | interface each collector listens on |
 | `CAPTURE_RETENTION_HOURS` | `24` | delete captures older than this after each upload; `0` keeps them forever |
 | `ALERT_THRESHOLD` | `0.5` | probability at or above which a flow counts as malicious |
@@ -420,6 +439,7 @@ All of it reaches the containers through the generated `.env`.
 | `BLOCK_WHITELIST` | gateways, collectors, mgmt range, host2 services | never blocked |
 | `LAYER_DATAPATH_MAP` | `top:1,inter:2,bottom:3` | which switch enforces which layer |
 | `WORKER_JAVA_OPTS` | `-Xms256m -Xmx1g` | CICFlowMeter heap |
+| `WORKER_MAX_PACKETS` | `100000` | a capture over this is cut to its first packets before conversion; `0` never trims |
 
 The whitelist matters: an alert naming a gateway or a collector would partition
 the testbed, so those addresses are refused and logged.

@@ -62,3 +62,25 @@ def test_non_numeric_threshold_is_rejected():
 def test_min_flows_below_one_is_rejected():
     with pytest.raises(ValueError, match="ALERT_MIN_FLOWS"):
         WorkerConfig.from_env({**BASE, "ALERT_MIN_FLOWS": "0"})
+
+
+def test_packet_bound_defaults_to_the_collectors():
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path("build/collector")))
+    from collector import CollectorConfig
+
+    assert WorkerConfig.from_env(BASE).max_packets == CollectorConfig.from_env(
+        {"LAYER": "top"}
+    ).max_packets
+
+
+def test_packet_bound_can_be_set_and_disabled():
+    assert WorkerConfig.from_env({**BASE, "WORKER_MAX_PACKETS": "900"}).max_packets == 900
+    assert WorkerConfig.from_env({**BASE, "WORKER_MAX_PACKETS": "0"}).max_packets == 0
+
+
+@pytest.mark.parametrize("bad", ["-5", "lots"])
+def test_a_bad_packet_bound_is_rejected(bad):
+    with pytest.raises(ValueError, match="WORKER_MAX_PACKETS"):
+        WorkerConfig.from_env({**BASE, "WORKER_MAX_PACKETS": bad})

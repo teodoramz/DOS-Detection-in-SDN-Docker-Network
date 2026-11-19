@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import subprocess
 import sys
@@ -20,6 +21,8 @@ from typing import Mapping
 
 LAYERS = ("top", "inter", "bottom")
 LAYER_TOPICS = {"top": "top-layer", "inter": "inter-layer", "bottom": "bot-layer"}
+
+DEFAULT_MAX_PACKETS = 100_000
 
 log = logging.getLogger("collector")
 
@@ -57,6 +60,7 @@ class CollectorConfig:
     kafka_broker: str
     kafka_topic: str
     retention_hours: int
+    max_packets: int
 
     @classmethod
     def from_env(cls, env: Mapping[str, str]) -> "CollectorConfig":
@@ -83,6 +87,17 @@ class CollectorConfig:
         if retention < 0:
             raise ValueError(f"CAPTURE_RETENTION_HOURS cannot be negative, got {retention}")
 
+        raw_cap = env.get("CAPTURE_MAX_PACKETS")
+        raw_cap = str(DEFAULT_MAX_PACKETS) if raw_cap in (None, "") else raw_cap
+        try:
+            max_packets = int(raw_cap)
+        except ValueError as exc:
+            raise ValueError(
+                f"CAPTURE_MAX_PACKETS must be an integer, got {raw_cap!r}"
+            ) from exc
+        if max_packets < 0:
+            raise ValueError(f"CAPTURE_MAX_PACKETS cannot be negative, got {max_packets}")
+
         return cls(
             layer=layer,
             interface=env.get("CAPTURE_INTERFACE", "eth0"),
@@ -96,6 +111,7 @@ class CollectorConfig:
             kafka_broker=env.get("KAFKA_BROKER", "10.0.5.2:9092"),
             kafka_topic=env.get("KAFKA_TOPIC") or LAYER_TOPICS[layer],
             retention_hours=retention,
+            max_packets=max_packets,
         )
 
 
@@ -197,9 +213,18 @@ def backoff_after_failed_capture(cfg: "CollectorConfig", sleeper=time.sleep) -> 
     sleeper(min(cfg.duration, 5))
 
 
-def capture(cfg: CollectorConfig, filepath: Path) -> None:
+def capture_command(cfg: CollectorConfig, filepath: Path) -> list:
+    cmd = ["tcpdump", "-i", cfg.interface, "-s", "0", "-w", str(filepath)]
+    if cfg.max_packets > 0:
+        cmd += ["-c", str(cfg.max_packets)]
+    return cmd
+
+
+def capture(cfg: CollectorConfig, filepath: Path) -> float:
+    """Run tcpdump until the window or the packet cap ends it. Returns seconds."""
+    started = time.monotonic()
     proc = subprocess.Popen(
-        ["tcpdump", "-i", cfg.interface, "-s", "0", "-w", str(filepath)],
+        capture_command(cfg, filepath),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
     )
     try:
@@ -211,6 +236,23 @@ def capture(cfg: CollectorConfig, filepath: Path) -> None:
         except subprocess.TimeoutExpired:
             proc.kill()
             proc.wait()
+    return time.monotonic() - started
+
+
+def announced_duration(window: int, elapsed: float) -> int:
+    """Whole seconds the window actually covered, within 1..window."""
+    return max(1, min(window, math.ceil(elapsed)))
+
+
+def wait_out_window(cfg: "CollectorConfig", elapsed: float, sleeper=time.sleep) -> None:
+    """Sleep out the rest of the window when the packet cap ended it early.
+
+    Without this a flood would cut a window every second or two, each one
+    uploaded and converted, faster than the worker can keep up.
+    """
+    remaining = cfg.duration - elapsed
+    if remaining > 0:
+        sleeper(remaining)
 
 
 def main() -> int:
@@ -243,12 +285,17 @@ def main() -> int:
     )
 
     while True:
+        loop_started = time.monotonic()
         started = datetime.now(timezone.utc)
         filename = f"capture-{started.strftime('%Y%m%d%H%M%S')}.pcap"
         filepath = cfg.tmp_dir / filename
 
-        log.info("capturing %s for %ds", filename, cfg.duration)
-        capture(cfg, filepath)
+        log.info("capturing %s for up to %ds / %s packets", filename, cfg.duration,
+                 cfg.max_packets or "unlimited")
+        elapsed = capture(cfg, filepath)
+        covered = announced_duration(cfg.duration, elapsed)
+        if covered < cfg.duration:
+            log.info("%s ended after %.1fs at the packet cap", filename, elapsed)
 
         if not filepath.exists() or filepath.stat().st_size == 0:
             log.warning("%s is empty; is %s present?", filename, cfg.interface)
@@ -263,7 +310,7 @@ def main() -> int:
             )
             producer.send(cfg.kafka_topic, build_message(
                 filename=filename, bucket=cfg.minio_bucket, layer=cfg.layer,
-                captured_at=started_iso, duration=cfg.duration,
+                captured_at=started_iso, duration=covered,
                 interface=cfg.interface, download_url=url,
             ))
             producer.flush()
@@ -275,6 +322,7 @@ def main() -> int:
             publish=publish,
         )
         prune_old_captures(cfg, store)
+        wait_out_window(cfg, time.monotonic() - loop_started)
 
 
 if __name__ == "__main__":

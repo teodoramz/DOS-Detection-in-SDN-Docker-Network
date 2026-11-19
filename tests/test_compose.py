@@ -123,3 +123,17 @@ def test_ryu_keeps_its_block_state_on_a_named_volume():
     mounts = HOST1["services"]["ryu"]["volumes"]
     assert any(m.endswith(":/var/lib/ddos-ryu") for m in mounts)
     assert mounts[0].split(":")[0] in HOST1["volumes"]
+
+
+def test_every_collector_gets_the_packet_cap():
+    collectors = [n for n in HOST1["services"] if n.endswith("_collector")]
+    assert len(collectors) == 3
+    for name in collectors:
+        env = HOST1["services"][name]["environment"]
+        assert env["CAPTURE_MAX_PACKETS"] == "${CAPTURE_MAX_PACKETS}", name
+
+
+@pytest.mark.parametrize("worker", ["worker1", "worker2", "worker3"])
+def test_every_worker_gets_the_packet_bound(worker):
+    env = HOST2["services"][worker]["environment"]
+    assert env["WORKER_MAX_PACKETS"] == "${WORKER_MAX_PACKETS}"

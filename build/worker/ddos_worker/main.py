@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from .alerts import aggregate
+from .capture import trim_capture
 from .config import WorkerConfig
 from .detectors import build_detector
 from .flowmeter import FlowMeterError, pcap_to_csv, read_flows
@@ -95,6 +96,7 @@ def is_stale(captured_at, now: datetime, max_lag_seconds: int) -> bool:
 def process_capture(pcap: Path, cfg: WorkerConfig, detector, window_start: str, window_end: str):
     """pcap to alerts. Returns an empty list when nothing is worth reporting."""
     started = time.monotonic()
+    trim_capture(pcap, cfg.max_packets)
     csv_path = pcap_to_csv(
         pcap, pcap.parent / "csv", cfm_home=cfg.cfm_home,
         timeout=cfg.flowmeter_timeout, java_opts=cfg.java_opts,

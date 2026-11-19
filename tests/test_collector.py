@@ -195,3 +195,103 @@ def test_an_unrelated_upload_failure_is_not_retried(tmp_path):
         collector.upload_capture(store, cfg, pcap=pcap, filename="capture.pcap")
     assert store.calls == 1, "a transport error must not trigger a bucket rebuild"
     assert store.made == []
+
+
+def test_packet_cap_has_a_default_and_can_be_set():
+    assert CollectorConfig.from_env({"LAYER": "top"}).max_packets > 0
+    cfg = CollectorConfig.from_env({"LAYER": "top", "CAPTURE_MAX_PACKETS": "5000"})
+    assert cfg.max_packets == 5000
+
+
+def test_a_blank_packet_cap_means_the_default():
+    default = CollectorConfig.from_env({"LAYER": "top"}).max_packets
+    assert CollectorConfig.from_env(
+        {"LAYER": "top", "CAPTURE_MAX_PACKETS": ""}
+    ).max_packets == default
+
+
+def test_a_packet_cap_of_zero_is_unbounded():
+    cfg = CollectorConfig.from_env({"LAYER": "top", "CAPTURE_MAX_PACKETS": "0"})
+    assert cfg.max_packets == 0
+
+
+@pytest.mark.parametrize("bad", ["-1", "many"])
+def test_a_bad_packet_cap_is_rejected(bad):
+    with pytest.raises(ValueError, match="CAPTURE_MAX_PACKETS"):
+        CollectorConfig.from_env({"LAYER": "top", "CAPTURE_MAX_PACKETS": bad})
+
+
+def test_tcpdump_stops_at_the_packet_cap_and_keeps_full_packets():
+    cfg = CollectorConfig.from_env({"LAYER": "top", "CAPTURE_MAX_PACKETS": "5000"})
+    cmd = collector.capture_command(cfg, Path("/tmp/x.pcap"))
+    assert cmd[cmd.index("-c") + 1] == "5000"
+    assert cmd[cmd.index("-s") + 1] == "0"
+
+
+def test_no_packet_cap_leaves_tcpdump_unbounded():
+    cfg = CollectorConfig.from_env({"LAYER": "top", "CAPTURE_MAX_PACKETS": "0"})
+    assert "-c" not in collector.capture_command(cfg, Path("/tmp/x.pcap"))
+
+
+def _fake_popen(monkeypatch, *, exits_early):
+    events = []
+
+    class Proc:
+        def wait(self, timeout=None):
+            if exits_early:
+                events.append("exited")
+                return 0
+            if "terminated" not in events:
+                events.append("timeout")
+                raise collector.subprocess.TimeoutExpired("tcpdump", timeout)
+            return 0
+
+        def terminate(self):
+            events.append("terminated")
+
+        def kill(self):
+            events.append("killed")
+
+    monkeypatch.setattr(collector.subprocess, "Popen", lambda *a, **k: Proc())
+    return events
+
+
+def test_capture_returns_without_terminating_when_tcpdump_stops_early(monkeypatch):
+    events = _fake_popen(monkeypatch, exits_early=True)
+    cfg = CollectorConfig.from_env({"LAYER": "top"})
+    elapsed = collector.capture(cfg, Path("/tmp/x.pcap"))
+    assert events == ["exited"]
+    assert 0 <= elapsed < cfg.duration
+
+
+def test_capture_still_ends_a_quiet_window_at_the_duration(monkeypatch):
+    events = _fake_popen(monkeypatch, exits_early=False)
+    cfg = CollectorConfig.from_env({"LAYER": "top"})
+    collector.capture(cfg, Path("/tmp/x.pcap"))
+    assert events == ["timeout", "terminated"]
+
+
+def test_the_announced_duration_is_the_window_that_was_captured():
+    assert collector.announced_duration(30, 7.2) == 8
+    assert collector.announced_duration(30, 30.4) == 30
+    assert collector.announced_duration(30, 0.0) == 1
+
+
+def test_an_early_window_waits_out_the_rest_of_its_period():
+    cfg = CollectorConfig.from_env({"LAYER": "top"})
+    slept = []
+    collector.wait_out_window(cfg, 2.5, sleeper=slept.append)
+    assert slept == [pytest.approx(cfg.duration - 2.5)]
+
+
+def test_a_full_window_does_not_wait():
+    cfg = CollectorConfig.from_env({"LAYER": "top"})
+    slept = []
+    collector.wait_out_window(cfg, cfg.duration + 4, sleeper=slept.append)
+    assert slept == []
+
+
+def test_the_capture_loop_waits_out_early_windows():
+    source = Path("build/collector/collector.py").read_text()
+    body = source[source.index("def main("):]
+    assert body.index("wait_out_window") > body.index("prune_old_captures")

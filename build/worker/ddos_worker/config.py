@@ -11,6 +11,8 @@ LAYERS = ("top", "inter", "bottom")
 LAYER_TOPICS = {"top": "top-layer", "inter": "inter-layer", "bottom": "bot-layer"}
 LAYER_BUCKETS = dict(LAYER_TOPICS)
 
+DEFAULT_MAX_PACKETS = 100_000
+
 
 def _float(env: Mapping[str, str], key: str, default: float, low: float, high: float) -> float:
     raw = env.get(key)
@@ -56,6 +58,7 @@ class WorkerConfig:
     cfm_home: Path
     flowmeter_timeout: int
     java_opts: str
+    max_packets: int
     work_dir: Path
 
     @classmethod
@@ -82,5 +85,6 @@ class WorkerConfig:
             cfm_home=Path(env.get("CFM_HOME", "/opt/cicflowmeter")),
             flowmeter_timeout=_int(env, "FLOWMETER_TIMEOUT", 300, 1),
             java_opts=env.get("JAVA_OPTS", ""),
+            max_packets=_int(env, "WORKER_MAX_PACKETS", DEFAULT_MAX_PACKETS, 0),
             work_dir=Path(env.get("WORK_DIR", "/tmp/ddos-worker")),
         )
